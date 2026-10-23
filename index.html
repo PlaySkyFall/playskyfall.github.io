@@ -881,9 +881,15 @@ const HQ={x:0,z:22,hx:8,hz:6,h:5.6};
 const flagGeo=new THREE.PlaneGeometry(3,1.8,12,1); const flagBase=flagGeo.attributes.position.array.slice();
 let beacon;
 { const g=new THREE.Group(); scene.add(g);
-  g.add(mesh(box(16,5,12),M(0x5a5440),0,2.5,22)); g.add(mesh(box(17.2,0.8,13.2),M(0x6c6650),0,5.3,22));
+  // the HQ: a walk-in concrete block (playtest #15). Outer walls x -8..8, z 16..28, 0.3 m thick; the doorway is on the
+  // right side (x +8, z 17.6..20.4), facing Mission Control and the Barracks. The interior is fitted out further down.
+  { const wm=M(0x5a5440); g.add(mesh(box(17.2,0.8,13.2),M(0x6c6650),0,5.3,22));
+    g.add(mesh(box(16,4.9,0.3),wm,0,2.45,16.15)); g.add(mesh(box(16,4.9,0.3),wm,0,2.45,27.85)); g.add(mesh(box(0.3,4.9,11.4),wm,-7.85,2.45,22));
+    g.add(mesh(box(0.3,4.9,1.3),wm,7.85,2.45,16.95)); g.add(mesh(box(0.3,4.9,7.3),wm,7.85,2.45,24.05)); g.add(mesh(box(0.3,1.9,2.8),wm,7.85,3.95,19));
+    const fr=M(0x2e2b20); for(const z of [17.55,20.45]) g.add(mesh(box(0.42,3.0,0.12),fr,7.85,1.5,z)); g.add(mesh(box(0.42,0.14,3.02),fr,7.85,3.0,19));
+    const leaf=mesh(box(2.7,2.9,0.08),M(0x3b4038),9.25,1.47,20.56); g.add(leaf); // the steel door, swung open against the wall
+    g.add(mesh(box(15.4,0.06,11.4),M(0x55534c),0,0.03,22)); g.add(mesh(box(15.4,0.1,11.4),M(0x3a382f),0,4.85,22)); }
   for(const x of [-5,0,5]) g.add(mesh(box(2.6,0.5,0.2),M(0x161510),x,3.4,15.95,false));
-  g.add(mesh(box(2.4,3.2,0.3),M(0x2e2b20),6,1.6,15.9));
   g.add(mesh(new THREE.CylinderGeometry(0.06,0.06,10,5),M(0x222222),6.5,10.5,25));
   beacon=mesh(new THREE.SphereGeometry(0.25,8,6),new THREE.MeshBasicMaterial({color:0xff3020}),6.5,15.6,25,false); g.add(beacon);
   g.add(mesh(new THREE.CylinderGeometry(0.07,0.07,8,5),M(0x333333),-6.5,9.6,18));
@@ -928,7 +934,10 @@ let beacon;
   const bm=new THREE.InstancedMesh(new THREE.SphereGeometry(1,10,6),SANDBAG_MAT,bagsTop.length*2);
   bagsTop.forEach(([x,z,yaw],i)=>{ for(let k=0;k<2;k++){ const off=k?-0.26:0.26; o.position.set(x+Math.cos(yaw)*off,1.24,z-Math.sin(yaw)*off); o.rotation.set(0,yaw+rand(-0.1,0.1),0); o.scale.set(0.27,0.15,0.44); o.updateMatrix(); bm.setMatrixAt(i*2+k,o.matrix); } });
   bm.castShadow=true; bm.receiveShadow=true; g.add(bm);
-  boxC(HQ.x,HQ.z,8.6,6.6,5.7,L_BODY|L_SHOT|L_WRECK,{owner:'hq',name:'HQ'});
+  { const HM=L_BODY|L_SHOT|L_SHIELD|L_WRECK, o={owner:'hq',name:'HQ'}; // walls and roof hit like the old solid block; the doorway is open
+    rectC([-8,8,16,16.3],4.9,HM,o); rectC([-8,8,27.7,28],4.9,HM,o); rectC([-8,-7.7,16.3,27.7],4.9,HM,o);
+    rectC([7.7,8,16.3,17.6],4.9,HM,o); rectC([7.7,8,20.4,27.7],4.9,HM,o); rectC([7.7,8,17.6,20.4],4.9,HM,Object.assign({y0:3.0},o));
+    rectC([-8.6,8.6,15.4,28.6],5.7,HM,Object.assign({y0:4.8},o)); rectC([7.95,10.6,20.5,20.62],2.9,L_BODY,{name:'HQ door'}); }
   // crates, barrels
   for(const [x,z,s] of [[11,12,1.2],[12.3,13.4,1],[11.4,13.6,0.9],[-12,11,1.3],[-13,9.4,1]]){ g.add(mesh(box(s,s,s),M(0x6b5a35),x,s/2,z)); boxC(x,z,s/2,s/2,s,L_BODY|L_SHOT|L_SHIELD|L_WRECK,{name:'crate'}); }
   for(const [x,z] of [[-10,13],[-10.9,13.5],[14,10]]){ g.add(mesh(new THREE.CylinderGeometry(0.35,0.35,1,8),M(0x44513a),x,0.5,z)); cirC(x,z,0.35,1,L_BODY|L_SHOT,{name:'barrel'}); }
@@ -1001,10 +1010,10 @@ let slotLamp, radioLed, viceSigns;
   const s5=makeSign([{t:'MESS TENT',f:`76px ${STEN}`},{t:'UPGRADES · SMOKES · BEER · CARDS',f:`700 28px ${COND}`}],512,200,'#1d1a14','#f3a81f',3,1.17); s5.position.set(-15.85,3.65,13); s5.rotation.y=Math.PI/2; g.add(s5);
 }
 // Mission Control: command tent right of the HQ, entrance facing the base (-x).
-// Weapon rack on the back wall, upgrade terminals on the left, personnel + HQ repair on the right, wave lever in the middle.
+// Weapon rack on the back wall, upgrade terminals on the left, personnel + HQ repair on the right, map table in the middle (the wave lever is in the HQ).
 for(const r of [[25.8,26.2,9,17],[16,26,8.85,9.15],[16,26,16.85,17.15],[15.85,16.15,9,11.4],[15.85,16.15,14.6,17]]) rectC(r,3.2,L_BODY,{name:'Mission Control wall'});
 rectC([16,26,9,17],4.6,L_WRECK,{name:'Mission Control roof'});
-rectC([19.4,21.6,12.3,13.7],0.9,L_BODY,{name:'map table'}); rectC([23.15,24.05,12.55,13.45],1.9,L_BODY,{name:'lever console'});
+rectC([19.4,21.6,12.3,13.7],0.9,L_BODY,{name:'map table'});
 rectC([16.6,25.4,9.1,9.95],1.5,L_BODY,{name:'upgrade terminals'}); rectC([17.4,21.8,15.95,16.9],1.5,L_BODY,{name:'personnel desks'});
 const mcSigns=[];
 function dynSign(w,h,pw,ph,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; const tex=new THREE.CanvasTexture(c);
@@ -1069,21 +1078,71 @@ const rackGuns={}; let lever, leverLamp, radarDish;
     x.strokeStyle='#ff5a3c'; x.fillStyle='#ff5a3c'; x.lineWidth=5; for(const [a,b] of [[60,30],[256,10],[450,40]]){ x.beginPath(); x.moveTo(a,b); x.lineTo(256+(a-256)*0.35,120); x.stroke(); }
     x.fillStyle='#e9e4d4'; x.font=`700 28px ${COND}`; x.textAlign='left'; x.fillText('AO KESTREL',16,300);
     const t=new THREE.Mesh(new THREE.PlaneGeometry(2.1,1.3).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)})); t.position.set(20.5,0.86,13); t.rotation.y=-Math.PI/2; g.add(t); }
-  // the wave lever
-  g.add(mesh(box(0.8,1.0,0.8),steel,23.6,0.5,13)); g.add(mesh(box(0.84,0.08,0.84),dk,23.6,1.03,13));
-  g.add(mesh(box(0.5,0.12,0.18),M(0xc9a24a),23.6,1.12,13));
-  lever=new THREE.Group(); lever.position.set(23.6,1.12,13); g.add(lever);
-  lever.add(mesh(new THREE.CylinderGeometry(0.035,0.035,0.75,8),M(0xcfd2d4,{shininess:80}),0,0.37,0)); lever.add(mesh(new THREE.SphereGeometry(0.08,10,8),M(0xcc2020,{shininess:60}),0,0.76,0));
-  leverLamp=mesh(new THREE.SphereGeometry(0.07,8,6),new THREE.MeshBasicMaterial({color:0x40ff70}),23.18,0.85,13.25,false); g.add(leverLamp);
-  const ls=makeSign([{t:'LAUNCH WAVE',f:`52px ${STEN}`},{t:'PULL TO START THE NEXT ATTACK',f:`700 22px ${COND}`}],384,120,'#2a0d0b','#ff5a3c',0.76,0.24); ls.position.set(23.185,0.62,13); ls.rotation.y=-Math.PI/2; g.add(ls);
   // exterior: sign, radar mast, generator
-  const es=makeSign([{t:'MISSION CONTROL',f:`64px ${STEN}`},{t:'ARMORY · UPGRADES · WAVE LEVER',f:`700 28px ${COND}`}],512,200,'#14110c','#7cc7ff',3,1.17); es.position.set(15.85,3.65,13); es.rotation.y=-Math.PI/2; g.add(es);
+  const es=makeSign([{t:'MISSION CONTROL',f:`64px ${STEN}`},{t:'ARMORY · UPGRADES · PERSONNEL',f:`700 28px ${COND}`}],512,200,'#14110c','#7cc7ff',3,1.17); es.position.set(15.85,3.65,13); es.rotation.y=-Math.PI/2; g.add(es);
   g.add(mesh(new THREE.CylinderGeometry(0.08,0.1,3,6),dk,24,5.6,15.5));
   radarDish=new THREE.Group(); radarDish.position.set(24,7.1,15.5); g.add(radarDish);
   const dish=mesh(new THREE.SphereGeometry(0.9,12,6,0,6.283,0,0.9),M(0xcfd2d4,{side:THREE.DoubleSide}),0,0,0.2); dish.rotation.x=-Math.PI/2; radarDish.add(dish); radarDish.add(mesh(box(0.06,0.06,0.9),dk,0,0,0.5));
   g.add(mesh(box(1.4,1.2,0.9),M(0x55603a),27.6,0.6,11)); g.add(mesh(new THREE.CylinderGeometry(0.06,0.06,0.8,6),dk,27.9,1.6,11));
 }
 if(document.fonts&&document.fonts.ready) document.fonts.ready.then(refreshMC);
+// ---- HQ interior (playtest #12/#15): the operations room. The wave lever sits on the back wall under a live status board;
+// a plotting table in the middle, radio desks on the left wall, the doorway on the right.
+let hqBoard, hqWaveBoard;
+{ const g=new THREE.Group(); scene.add(g); const dk=M(0x24272a), steel=M(0x5a6068), desk=M(0x4a4136);
+  const hl=new THREE.PointLight(0xffe2b8,1.25,20,1.5); hl.position.set(0,3.9,22); scene.add(hl);
+  const bulb=new THREE.MeshBasicMaterial({color:0xffe9c8}); for(const x of [-5,-1.7,1.7,5]) { g.add(mesh(new THREE.CylinderGeometry(0.02,0.02,0.6,4),dk,x,4.5,22,false)); g.add(mesh(new THREE.SphereGeometry(0.11,8,6),bulb,x,4.15,22,false)); }
+  const win=new THREE.MeshBasicMaterial({color:0x2c3a50}); for(const x of [-5,0,5]) g.add(mesh(box(2.6,0.5,0.04),win,x,3.4,16.32,false)); // the front slits, from inside
+  // the wave lever, on the back wall facing the room
+  const lc=new THREE.Group(); lc.position.set(0,0,26.9); lc.rotation.y=-Math.PI/2; g.add(lc);
+  lc.add(mesh(box(0.8,1.0,0.8),steel,0,0.5,0)); lc.add(mesh(box(0.84,0.08,0.84),dk,0,1.03,0)); lc.add(mesh(box(0.5,0.12,0.18),M(0xc9a24a),0,1.12,0));
+  lever=new THREE.Group(); lever.position.set(0,1.12,0); lc.add(lever);
+  lever.add(mesh(new THREE.CylinderGeometry(0.035,0.035,0.75,8),M(0xcfd2d4,{shininess:80}),0,0.37,0)); lever.add(mesh(new THREE.SphereGeometry(0.08,10,8),M(0xcc2020,{shininess:60}),0,0.76,0));
+  leverLamp=mesh(new THREE.SphereGeometry(0.07,8,6),new THREE.MeshBasicMaterial({color:0x40ff70}),-0.42,0.85,0.25,false); lc.add(leverLamp);
+  const ls=makeSign([{t:'LAUNCH WAVE',f:`52px ${STEN}`},{t:'PULL TO START THE NEXT ATTACK',f:`700 22px ${COND}`}],384,120,'#2a0d0b','#ff5a3c',0.76,0.24); ls.position.set(-0.415,0.62,0); ls.rotation.y=-Math.PI/2; lc.add(ls);
+  rectC([-0.45,0.45,26.45,27.35],1.9,L_BODY,{name:'lever console'});
+  // status board above it: what's next, the prep clock and the HQ's health (redrawn twice a second while you're near)
+  hqBoard=dynSign(768,360,3.0,1.4,(c,W,H)=>{ framed(c,W,H,'#0d1310',G.intermission?'#6fd39a':'#ff5a3c'); c.fillStyle='#8fb59c'; c.font=`700 30px ${COND}`; c.fillText('OPERATIONS · FOB KESTREL',W/2,H*0.13);
+    const s=Math.ceil(G.prepT||0), bonus=Math.round((G.prepT||0)*CFG.earlyBonusPerSec);
+    c.fillStyle=G.intermission?'#e9e4d4':'#ff5a3c'; c.font=`96px ${STEN}`; c.fillText(G.creative?'CREATIVE':G.intermission?`WAVE ${G.wave+1} READY`:`WAVE ${G.wave} IN PROGRESS`,W/2,H*0.4);
+    c.font=`700 34px ${COND}`; c.fillStyle='#f3a81f'; c.fillText(G.creative?'No waves in Creative Mode':G.intermission?(s>0?`PREP ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')} · PULL NOW FOR +$${fmt(bonus)}`:'PREP OVER · PULL THE LEVER'):`${G.enemies.filter(e=>!e.dead).length} AIRCRAFT INBOUND`,W/2,H*0.63);
+    c.fillStyle='#26332b'; c.fillRect(60,H*0.76,W-120,20); c.fillStyle=G.hq.hp<G.hq.max*0.5?'#ff5a3c':'#6fd39a'; c.fillRect(60,H*0.76,(W-120)*G.hq.hp/G.hq.max,20);
+    c.fillStyle='#8fb59c'; c.font=`600 26px ${COND}`; c.fillText(`HQ ${fmt(Math.ceil(G.hq.hp))} / ${fmt(G.hq.max)}`,W/2,H*0.9); });
+  hqBoard.position.set(0,2.75,27.68); hqBoard.rotation.y=Math.PI; g.add(hqBoard);
+  // wave board (left of it): the next wave's line-up between waves (count, NEW types, armor, the weapon that answers it);
+  // during a wave, what's still in the air
+  hqWaveBoard=dynSign(800,560,4.0,2.8,(c,W,H)=>{ const inter=G.intermission, q=inter?waveTypes(G.nextQ):G.enemies.filter(e=>!e.dead).map(e=>e.type), counts={};
+    for(const t of q) if(ETYPES[t]) counts[t]=(counts[t]||0)+1; const seen=seenTypes(), rows=Object.entries(counts).sort((a,b)=>(ETYPES[b[0]].boss?1:0)-(ETYPES[a[0]].boss?1:0)||b[1]-a[1]);
+    framed(c,W,H,'#0d1113','#7cc7ff'); c.fillStyle='#7cc7ff'; c.font=`52px ${STEN}`; c.fillText(G.creative?'WAVE BOARD':inter?`WAVE ${G.wave+1} INTEL`:`WAVE ${G.wave} · IN THE AIR`,W/2,52);
+    c.textAlign='left'; c.font=`700 22px ${COND}`; c.fillStyle='#6f8a96'; c.fillText('AIRCRAFT',40,104); c.fillText('ARMOR',430,104); c.fillText('ANSWER WITH',560,104);
+    if(!rows.length){ c.textAlign='center'; c.fillStyle='#8e9a9f'; c.font=`700 30px ${COND}`; c.fillText(G.creative?'No waves in Creative Mode':inter?'Intel pending':'Sky clear',W/2,H/2); return; }
+    const rh=Math.min(52,(H-150)/rows.length); rows.forEach(([t,n],i)=>{ const T=ETYPES[t], TT=t==='swarm'?ETYPES.drone:T, y=140+i*rh, isNew=inter&&!seen.has(t); // a swarm is drones
+      const best=WEAPONS.map(w=>[w,(WEAPON_VS[w.id]||{})[tclass(TT)]||1]).sort((a,b)=>b[1]-a[1])[0];
+      c.fillStyle=T.boss?'#ff5a3c':'#e9e4d4'; c.font=`700 ${Math.min(32,rh*0.62)}px ${COND}`; c.fillText(`${n}× ${T.name}`,40,y);
+      if(isNew||T.boss){ const tag=T.boss?'BOSS':'NEW', w=c.measureText(`${n}× ${T.name}`).width; c.fillStyle='#ff5a3c'; c.font=`800 ${Math.min(20,rh*0.4)}px ${COND}`; c.fillText(tag,52+w,y-6); }
+      c.fillStyle=TT.armor>=0.5?'#ff5a3c':TT.armor>0?'#f3a81f':'#6fd39a'; c.font=`700 ${Math.min(28,rh*0.55)}px ${COND}`; c.fillText(TT.armor?`${Math.round(TT.armor*100)}%`:'none',430,y);
+      c.fillStyle='#7cc7ff'; c.fillText(best[1]>1?`${best[0].short} ×${best[1]}`:'anything',560,y); }); });
+  hqWaveBoard.position.set(-5.2,2.6,27.68); hqWaveBoard.rotation.y=Math.PI; g.add(hqWaveBoard);
+  // plotting table: the AO drawn to scale (base, tents, objectives, range rings, threat axes)
+  g.add(mesh(box(3.2,0.85,2.0),dk,0,0.425,21.6)); rectC([-1.6,1.6,20.6,22.6],0.9,L_BODY,{name:'plotting table'});
+  { const c=document.createElement('canvas'); c.width=640; c.height=400; const x=c.getContext('2d'), u=wx=>(wx+80)/160*640, v=wz=>(wz+74)/114*400;
+    x.fillStyle='#4a4430'; x.fillRect(0,0,640,400); x.strokeStyle='rgba(255,255,255,0.1)'; x.lineWidth=1; for(let i=0;i<640;i+=32){x.beginPath();x.moveTo(i,0);x.lineTo(i,400);x.stroke();} for(let i=0;i<400;i+=32){x.beginPath();x.moveTo(0,i);x.lineTo(640,i);x.stroke();}
+    x.strokeStyle='#c9b98a'; x.lineWidth=4; x.strokeRect(u(-76),v(-70),u(76)-u(-76),v(36)-v(-70));
+    x.fillStyle='#f3a81f'; x.fillRect(u(-8),v(16),u(8)-u(-8),v(28)-v(16)); x.fillStyle='#7cc7ff'; for(const [a,b,c2,d] of [[16,26,9,17],[-26,-16,9,17],[16,26,20,28]]) x.fillRect(u(a),v(c2),u(b)-u(a),v(d)-v(c2));
+    x.fillStyle='#6fd39a'; for(const [ox,oz] of [[-54,-35],[53,-39]]) x.fillRect(u(ox)-8,v(oz)-8,16,16); // oil rig, solar farm (OBJ_DEF comes later)
+    x.strokeStyle='rgba(233,228,212,0.5)'; x.lineWidth=2; for(const r of [40,80]){ x.beginPath(); x.ellipse(u(0),v(22),r/160*640,r/114*400,0,0,7); x.stroke(); }
+    x.strokeStyle='#ff5a3c'; x.fillStyle='#ff5a3c'; x.lineWidth=5; for(const [a,b] of [[80,10],[320,5],[560,20]]){ x.beginPath(); x.moveTo(a,b); x.lineTo(u(0)+(a-u(0))*0.4,v(-20)); x.stroke(); }
+    x.fillStyle='#e9e4d4'; x.font=`700 26px ${COND}`; x.textAlign='left'; x.fillText('AO KESTREL',14,388);
+    const t=new THREE.Mesh(new THREE.PlaneGeometry(3.0,1.85).rotateX(-Math.PI/2),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)})); t.position.set(0,0.86,21.6); g.add(t); }
+  // radio desks on the left wall, with two radar scopes
+  g.add(mesh(box(1.0,0.8,4.2),desk,-7.1,0.4,21.5)); rectC([-7.7,-6.6,19.4,23.6],0.85,L_BODY,{name:'radio desks'});
+  for(const z of [20.3,22.7]){ g.add(mesh(box(0.4,0.3,0.6),dk,-7.35,0.95,z)); g.add(mesh(box(0.5,0.45,0.5),dk,-6.2,0.25,z)); }
+  for(const z of [20.3,22.7]){ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); x.fillStyle='#03140a'; x.fillRect(0,0,128,128);
+    x.strokeStyle='#2fae5a'; x.lineWidth=2; for(const r of [20,40,58]){ x.beginPath(); x.arc(64,64,r,0,7); x.stroke(); } x.beginPath(); x.moveTo(64,64); x.lineTo(110,30); x.stroke();
+    x.fillStyle='#8cffb0'; for(let i=0;i<5;i++){ x.beginPath(); x.arc(30+Math.random()*70,30+Math.random()*70,2.5,0,7); x.fill(); }
+    const s=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)})); s.position.set(-7.68,1.75,z); s.rotation.y=Math.PI/2; g.add(s); }
+  // over the doorway, outside
+  const ds=makeSign([{t:'HQ · OPERATIONS',f:`56px ${STEN}`},{t:'WAVE LEVER INSIDE',f:`700 26px ${COND}`}],448,140,'#14110c','#f3a81f',2.4,0.75); ds.position.set(8.03,3.55,19); ds.rotation.y=Math.PI/2; g.add(ds); }
 // ---- Barracks: walk-in tent behind Mission Control (x 16..26, z 20..28), entrance facing the HQ (-x).
 // Six bunks with live name plates (one per squad slot), a roster board with everyone's health and what they do,
 // and recruitment posters along the back wall (walk up, E to recruit).
@@ -2522,16 +2581,16 @@ function findStation(){
   return best;
 }
 // walk-in tents (wall centre lines). A station on or inside one belongs to it; you must be inside to use it.
-const ROOMS=[{id:'mess',x0:-26,x1:-16,z0:9,z1:17},{id:'mc',x0:16,x1:26,z0:9,z1:17},{id:'barracks',x0:16,x1:26,z0:20,z1:28}];
+const ROOMS=[{id:'hq',x0:-8,x1:8,z0:16,z1:28},{id:'mess',x0:-26,x1:-16,z0:9,z1:17},{id:'mc',x0:16,x1:26,z0:9,z1:17},{id:'barracks',x0:16,x1:26,z0:20,z1:28}];
 function roomAt(x,z,pad){ pad=pad||0; for(const r of ROOMS) if(x>r.x0-pad&&x<r.x1+pad&&z>r.z0-pad&&z<r.z1+pad) return r.id; return null; }
 // metres from the player to the edge of a build's footprint
 function nearBuild(b){ const r=b.fp.r||Math.max(b.fp.hw,b.fp.hd)*0.8; return Math.max(0,Math.hypot(P.pos.x-b.x,P.pos.z-b.z)-r); }
 CFG.buildReach=2.6;
 const tentOpen=()=>G.creative||!G.waveActive;
-// Mission Control stations: one per rack weapon and per upgrade terminal, plus personnel, HQ repair and the lever
+// Mission Control stations: one per rack weapon and per upgrade terminal, plus personnel and HQ repair; and the wave lever, in the HQ
 WEAPONS.forEach((w,i)=>STATIONS.push({id:'w:'+w.id,name:w.short,pos:new THREE.Vector3(25.6,RACK[i].y,RACK[i].z),wi:i}));
 UPGS.forEach((u,i)=>STATIONS.push({id:'u:'+u.id,name:u.name.toUpperCase(),pos:new THREE.Vector3(UPX[i],1.16,9.5),uid:u.id}));
-STATIONS.push({id:'personnel',name:'PERSONNEL',pos:new THREE.Vector3(18.4,1.1,16.35)},{id:'repair',name:'HQ REPAIR',pos:new THREE.Vector3(20.9,1.16,16.5)},{id:'lever',name:'WAVE LEVER',pos:new THREE.Vector3(23.6,1.5,13)});
+STATIONS.push({id:'personnel',name:'PERSONNEL',pos:new THREE.Vector3(18.4,1.1,16.35)},{id:'repair',name:'HQ REPAIR',pos:new THREE.Vector3(20.9,1.16,16.5)},{id:'lever',name:'WAVE LEVER',pos:new THREE.Vector3(0,1.5,26.9)});
 const $p=n=>G.creative?'FREE':'$'+fmt(n);
 function stationPrompt(s){
   const id=s.id;
@@ -2556,7 +2615,7 @@ function stationPrompt(s){
   if(id==='armory') return '[E] Squad & deployables · read what each upgrade does';
   if(id==='slots') return '[E] Play Field Slots';
   if(id==='dice') return '[E] Roll dice with the Sarge';
-  if(id==='radio') return 'Waves start from the lever in Mission Control';
+  if(id==='radio') return 'Waves start from the lever in the HQ';
   return '';
 }
 // The explain card under the prompt: what you're looking at, what buying it changes (now → after), and what it costs.
@@ -2742,7 +2801,8 @@ function hqDist(p){ const dx=Math.max(Math.abs(p.x-HQ.x)-HQ.hx,0), dz=Math.max(M
 function groundBlast(p,R,dmg,src){
   // anything with a shield (sandbags, barricade, crate) between the blast and the target takes CFG.coverMul of the damage
   const cover=(x,y,z,own)=>blastCovered(p,x,y,z,own)?CFG.coverMul:1;
-  if(!P.dead){const d=tv.set(P.pos.x,1,P.pos.z).distanceTo(p); if(d<R+0.6) damagePlayer(dmg*(1-0.6*clamp(d/(R+0.6),0,1))*cover(P.pos.x,1,P.pos.z),src);}
+  const inHQ=q=>Math.abs(q.x-HQ.x)<HQ.hx&&q.z>16&&q.z<28&&q.y<4.8; // inside the HQ's walls and under its roof
+  if(!P.dead&&!(inHQ(P.pos)&&!inHQ(p))){const d=tv.set(P.pos.x,1,P.pos.z).distanceTo(p); if(d<R+0.6) damagePlayer(dmg*(1-0.6*clamp(d/(R+0.6),0,1))*cover(P.pos.x,1,P.pos.z),src);} // the HQ shelters you from blasts outside it
   for(const s of G.squad){const pad=s.def.turret?s.def.hitR+0.2:0.6, d=tv.set(s.x,1,s.z).distanceTo(p); if(d<R+pad) damageSquad(s,dmg*(1-0.6*clamp(d/(R+pad),0,1))*cover(s.x,1,s.z,s.coll));}
   for(const b of G.builds.slice()){ const d=Math.max(0,Math.hypot(p.x-b.x,p.z-b.z)-b.coll.br*0.7); if(d<R) damageBuild(b,dmg*1.2*(1-0.6*clamp(d/R,0,1))*cover(b.x,Math.min(1,b.def.h*0.5),b.z,b.coll)); }
   for(const id in G.obj){ if(!objUp(id)) continue; const D=OBJ_DEF[id], dd=Math.max(0,Math.hypot(p.x-D.x,p.z-D.z)-D.r*0.7); if(dd<R) damageObj(id,dmg*1.2*(1-0.6*clamp(dd/R,0,1))); }
@@ -3149,6 +3209,7 @@ function ambient(dt){
     for(const w of WEAPONS){ const own=P.ws[w.id].owned; rackGuns[w.id].visible=!own; rackGuns[w.id+'2'].visible=own&&!mk2(w.id); } // Mk I for sale -> Mk II on display -> empty once fitted
     bunkHelmets.forEach((h,i)=>{ const m=G.squad[i]; h.visible=!!(m&&!m.dead&&!m.def.turret); }); // a helmet on the bunk of each soldier on duty
     const pulled=G.waveActive||G.clearT>0; lever.rotation.z+=((pulled?0.6:-0.6)-lever.rotation.z)*Math.min(1,dt*12);
+    if((G.hqBoardT=(G.hqBoardT||0)-dt)<=0&&Math.hypot(P.pos.x-HQ.x,P.pos.z-HQ.z)<22){ G.hqBoardT=0.5; hqBoard.userData.redraw(); hqWaveBoard.userData.redraw(); } // the HQ status board, while you're near it
     leverLamp.material.color.setHex(pulled?0xff3020:(Math.sin(ambT*5)>0?0x40ff70:0x0d3a18));
     G.mcT=(G.mcT||0)-dt; if(G.mcT<=0){ G.mcT=0.5; refreshMC(); }
   }
@@ -3373,9 +3434,11 @@ function drawHUD(){
   if(G.intermission||G.creative) for(const [name,x,col] of [['MISSION CONTROL',16,'#7cc7ff'],['MESS TENT',-16,'#f3a81f']]){
     const inside=Math.abs(P.pos.x-(x>0?21:-21))<5.2&&P.pos.z>9&&P.pos.z<17; if(inside) continue;
     const d=Math.round(Math.hypot(P.pos.x-x,P.pos.z-13)); if(d<=7) continue; const p=toScreen(tv.set(x,5,13));
-    if(p.ok){ txt('▼ '+name,p.x,p.y-8,14,col,'center',800); txt(d+'M'+(x>0&&G.intermission?' · WAVE LEVER':''),p.x,p.y+8,12,'#e9e4d4','center'); }
-    else if(x>0&&G.intermission){ tv.set(x,3,13).applyMatrix4(cam.matrixWorldInverse); const a=Math.atan2(-tv.y,tv.x), ex=VW/2+Math.cos(a)*VW*0.42, ey=VH/2+Math.sin(a)*VH*0.4;
-      hx.save(); hx.translate(ex,ey); hx.rotate(a); hx.fillStyle=col; hx.beginPath(); hx.moveTo(14,0); hx.lineTo(-6,-9); hx.lineTo(-6,9); hx.fill(); hx.restore(); txt('MISSION CONTROL',ex,ey+24,12,col,'center',800); } }
+    if(p.ok){ txt('▼ '+name,p.x,p.y-8,14,col,'center',800); txt(d+'M'+(x>0?' · ARMORY':''),p.x,p.y+8,12,'#e9e4d4','center'); } }
+  if(G.intermission&&!G.creative&&roomAt(P.pos.x,P.pos.z)!=='hq'){ const col='#ff5a3c', d=Math.round(Math.hypot(P.pos.x-8.5,P.pos.z-19)), p=toScreen(tv.set(8.3,4.4,19)); // the way in to the wave lever
+    if(p.ok){ if(d>4){ txt('▼ HQ',p.x,p.y-8,14,col,'center',800); txt(d+'M · WAVE LEVER',p.x,p.y+8,12,'#e9e4d4','center'); } }
+    else { tv.set(8.3,3,19).applyMatrix4(cam.matrixWorldInverse); const a=Math.atan2(-tv.y,tv.x), ex=VW/2+Math.cos(a)*VW*0.42, ey=VH/2+Math.sin(a)*VH*0.4; // off screen: an arrow at the edge
+      hx.save(); hx.translate(ex,ey); hx.rotate(a); hx.fillStyle=col; hx.beginPath(); hx.moveTo(14,0); hx.lineTo(-6,-9); hx.lineTo(-6,9); hx.fill(); hx.restore(); txt('HQ · WAVE LEVER',ex,ey+24,12,col,'center',800); } }
   if(!P.dead) for(const s of STATIONS){ const d=s.pos.distanceTo(eye()); if(d>9) continue; const p=toScreen(tv.copy(s.pos).add(tv2.set(0,0.45,0))); if(!p.ok) continue;
     hx.globalAlpha=clamp((9-d)/3,0,1)*(P.station===s?1:0.7); txt(s.name,p.x,p.y,12,P.station===s?'#f3a81f':'#e9e4d4','center',800); hx.globalAlpha=1; }
   if(P.station&&!P.dead&&state==='play'){ const t=stationPrompt(P.station), act=t.startsWith('[E]'); hx.font=`800 17px ${FONT}`; const tw=hx.measureText(t).width;
@@ -3455,8 +3518,8 @@ function drawHUD(){
     txt('K skips the tutorial',VW/2,128,11,'#8e9a9f','center',700); }
   else if(G.intermission){ txt(G.wave===0?'PREP PHASE':'INTERMISSION',VW/2,34,30,'#f3a81f','center',400);
     if(G.prepT>0){ const s=Math.ceil(G.prepT); txt(`PREP ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}  ·  pull the lever now for +$${fmt(Math.round(G.prepT*CFG.earlyBonusPerSec))}`,VW/2,54,15,'#e9e4d4','center',700); }
-    else txt('Prep time is up. Wave '+(G.wave+1)+' starts when you pull the lever in Mission Control',VW/2,54,14,'#e9e4d4','center',600);
-    txt('F build mode · B field manual · Mission Control lever starts the wave',VW/2,72,12,'#8e9a9f','center');
+    else txt('Prep time is up. Wave '+(G.wave+1)+' starts when you pull the lever in the HQ',VW/2,54,14,'#e9e4d4','center',600);
+    txt('F build mode · B field manual · HQ lever starts the wave',VW/2,72,12,'#8e9a9f','center');
     // next-wave intel, so build choices are informed (NEW types in red)
     if(G.nextQ){ const counts={}; for(const t of waveTypes(G.nextQ)) counts[t]=(counts[t]||0)+1; const seen=seenTypes();
       const parts=Object.entries(counts).map(([k,v])=>[`${ETYPES[k].name} ×${v}`,!seen.has(k)]); hx.font=`700 13px ${FONT}`;
@@ -3531,7 +3594,7 @@ function drawHUD(){
   }
   if(G.empFx>0||G.empT>0){ hx.fillStyle=`rgba(150,110,255,${0.05+0.25*(G.empFx||0)})`; hx.fillRect(0,0,VW,VH); if(G.empT>0) txt(`EMP ACTIVE · ${Math.ceil(G.empT)}s`,VW/2,96,14,'#b48cff','center',800); }
   if(G.wave===0&&G.intermission&&!G.creative&&!G.tutorial){ // first-prep checklist; each step ticks itself off
-    const steps=[[G.tut.bar,'Press F and place a HESCO barricade'],[G.tut.mc,'Visit Mission Control (weapons + upgrades)'],[false,'Pull the lever in Mission Control to start wave 1']];
+    const steps=[[G.tut.bar,'Press F and place a HESCO barricade'],[G.tut.mc,'Visit Mission Control (weapons + upgrades)'],[false,'Pull the lever in the HQ to start wave 1']];
     hx.fillStyle='rgba(0,0,0,0.5)'; hx.fillRect(12,150,300,24+steps.length*20); txt('FIRST STEPS',22,168,13,'#f3a81f','left',800);
     steps.forEach(([done,s],i)=>txt(`${done?'✓':'○'}  ${s}`,22,188+i*20,13,done?'#6fd39a':'#e9e4d4','left',done?600:700)); }
   if(G.toast){ const k=Math.min(1,G.toast.life*3,(G.toast.max-G.toast.life)*6); hx.globalAlpha=k; txt(G.toast.t,VW/2,118,20,G.toast.col||'#f3a81f','center',800); if(G.toast.sub) txt(G.toast.sub,VW/2,136,13,'#e9e4d4','center',700); hx.globalAlpha=1; }
@@ -3603,13 +3666,13 @@ function renderMess(){
     <button class="btn sm" data-act="dice" ${ok?'':'disabled'}>ROLL · $${cr&&G.bet==='all'?'—':fmt(betAmt())}</button>
     <div class="paytable">Two dice each. Beat the Sarge and win your bet. Tie returns your bet.</div></div></div>`;
   h+=cr?`<div class="shop-foot"><p>Back to the range when you are done.</p><button class="btn" data-act="deploy">BACK TO THE RANGE</button></div>`
-       :`<div class="shop-foot"><p>The Sarge always wants a rematch. Wave ${G.wave+1} starts when you pull the lever in Mission Control.</p><div class="head-r"><button class="btn alt sm" data-act="buildmode">BUILD (F)</button><button class="btn" data-act="close">BACK TO THE FOB</button></div></div>`;
+       :`<div class="shop-foot"><p>The Sarge always wants a rematch. Wave ${G.wave+1} starts when you pull the lever in the HQ.</p><div class="head-r"><button class="btn alt sm" data-act="buildmode">BUILD (F)</button><button class="btn" data-act="close">BACK TO THE FOB</button></div></div>`;
   G.spun=null;
   return h;
 }
 function openShop(){ G.midShop=false; G.shopView='armory'; G.gmsg=null; G.nextQ=buildWave(G.wave+1); mouse.down=false; mouse.zoom=false; setState('shop'); releaseLock(); renderShop(); show('shop',true); }
 function enterIntermission(){ G.intermission=true; G.prepT=CFG.prepAfter; G.nextQ=buildWave(G.wave+1); G.shopView='armory'; G.gmsg=null;
-  banner('INTERMISSION','Resupply in Mission Control or the Mess Tent · pull the lever when ready','#f3a81f'); }
+  banner('INTERMISSION','Resupply in Mission Control or the Mess Tent · pull the lever in the HQ when ready','#f3a81f'); }
 // midShop=true means a paused fight (or creative); during intermission the overlay just closes back to the FOB
 // at: the counter you opened it from (the Personnel desk, the Mess Tent board, the slots/dice). Opened with B from
 // anywhere (at=null) it's a read-only field manual: prices, what everything does and where to buy it, but no buying.
@@ -3687,7 +3750,7 @@ function renderShop(){
   const buildBtn=`<button class="btn alt sm" data-act="buildmode">BUILD (F)</button>`;
   h+=cr?`</div></div><div class="shop-foot"><p>${G.kills} aircraft downed on the range. Press B or Esc to return.</p><div class="head-r">${buildBtn}<button class="btn" data-act="deploy">BACK TO THE RANGE</button></div></div>`
     :mid?`</div></div><div class="shop-foot"><p>Score ${fmt(G.score)} · ${G.kills} aircraft downed. Press B or Esc to get back in the fight.</p><div class="head-r">${buildBtn}<button class="btn" data-act="deploy">RESUME · WAVE ${G.wave}</button></div></div>`
-        :`</div></div><div class="shop-foot"><p>Score ${fmt(G.score)} · ${G.kills} aircraft downed. Wave ${G.wave+1} starts when you pull the lever in Mission Control.</p><div class="head-r">${buildBtn}<button class="btn" data-act="close">BACK TO THE FOB</button></div></div>`;
+        :`</div></div><div class="shop-foot"><p>Score ${fmt(G.score)} · ${G.kills} aircraft downed. Wave ${G.wave+1} starts when you pull the lever in the HQ.</p><div class="head-r">${buildBtn}<button class="btn" data-act="close">BACK TO THE FOB</button></div></div>`;
   $('shopCard').innerHTML=h;
 }
 $('shop').addEventListener('click',e=>{
@@ -3729,10 +3792,10 @@ function gameOver(){
   $('overStats').innerHTML=`<div><small>Wave</small><b>${G.wave}</b></div><div><small>Kills</small><b>${G.kills}</b></div><div><small>Score</small><b>${fmt(G.score)}</b></div>`;
   $('overBest').textContent=`Best: wave ${nb.wave} · ${fmt(nb.score)} pts`; show('over',true);
 }
-// A new game starts in intermission: every wave, including the first, starts only from the lever in Mission Control.
+// A new game starts in intermission: every wave, including the first, starts only from the lever in the HQ.
 function begin(){ initAudio(); newGame(); show('menu',false); show('over',false);
   G.intermission=true; G.prepT=CFG.prepFirst; G.nextQ=buildWave(1); P.pos.set(6,0,6); P.yaw=-1.15; P.pitch=0.02;
-  banner('FOB KESTREL','Gear up, then pull the lever in Mission Control to start wave 1','#f3a81f'); setState('play'); requestLock(); }
+  banner('FOB KESTREL','Gear up, then pull the lever in the HQ to start wave 1','#f3a81f'); setState('play'); requestLock(); }
 function beginCreative(){
   initAudio(); newGame(); show('menu',false); show('over',false);
   Object.assign(G,{creative:true,god:true,hold:false,cash:Infinity,wave:1,waveActive:false,hintT:1e9});
@@ -3779,7 +3842,7 @@ addEventListener('keydown',e=>{
   { const S=SUPPORT.find(s=>s.key===e.code); if(S) callSupport(S.id); }
   if(e.code==='KeyR') manualReload(); if(e.code==='KeyQ') cycleWeapon(-1);
   if(e.code==='KeyE'){ if(P.station&&(tentOpen()||P.station.build||P.station.obj)) interact(P.station); else cycleWeapon(1); }
-  if((e.code==='Enter'||e.code==='NumpadEnter')&&G.intermission) banner('USE THE LEVER','Waves only start from the lever in Mission Control','#7cc7ff');
+  if((e.code==='Enter'||e.code==='NumpadEnter')&&G.intermission) banner('USE THE LEVER','Waves only start from the lever in the HQ','#7cc7ff');
   if(['Space','ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
 });
 addEventListener('keyup',e=>{keys[e.code]=false;});
@@ -3832,7 +3895,7 @@ function endTutorial(skipped){
   if(!G.tutorial) return; G.tutorial=false; G.hold=false; G.god=false;
   for(const e of G.enemies){ e.dead=true; scene.remove(e.mesh); } G.enemies=[]; for(const s of G.eshots) if(s.mesh) scene.remove(s.mesh); G.eshots=[];
   P.ws.mg.owned=false; P.ws.stinger.owned=false; P.wi=0; G.kills=0; G.score=0; G.cash=500; G.feed=[]; G.ribbons=[];
-  if(skipped){ G.prepT=CFG.prepFirst; banner('TRAINING SKIPPED','Gear up, then pull the lever in Mission Control to start wave 1','#f3a81f'); }
+  if(skipped){ G.prepT=CFG.prepFirst; banner('TRAINING SKIPPED','Gear up, then pull the lever in the HQ to start wave 1','#f3a81f'); }
 }
 /* ================= prices: one table, loaded from prices.json ================= */
 // Load order: prices baked into this page by build.ps1 -> prices.json next to the page (when reachable) -> this browser's admin override.
