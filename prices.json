@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "weapons": {
+    "law": 0,
+    "mg": 700,
+    "stinger": 1800,
+    "swarm": 3600,
+    "rail": 7000
+  },
+  "upgrades": {
+    "warhead": 800,
+    "loader": 700,
+    "seeker": 1200,
+    "armor": 600,
+    "fort": 900
+  },
+  "upgradeGrowth": 0.8,
+  "squad": {
+    "gunner": 450,
+    "aa": 1300,
+    "medic": 900,
+    "engineer": 900,
+    "flak": 2400
+  },
+  "deployables": {
+    "barricade": 100,
+    "ammo": 250,
+    "aid": 350,
+    "decoy": 400,
+    "sentry": 900,
+    "cram": 4500,
+    "laser": 8500
+  },
+  "vices": {
+    "cigs": 200,
+    "beer": 200
+  },
+  "mods": {
+    "law": 1500,
+    "mg": 2000,
+    "stinger": 3500,
+    "swarm": 5000,
+    "rail": 8000
+  },
+  "objectives": {
+    "oilBuy": 6000,
+    "oil2": 5000,
+    "oil3": 8000,
+    "solarBuy": 7500,
+    "solar2": 6000,
+    "solar3": 9000,
+    "rebuild": 40
+  },
+  "support": {
+    "barrage": 1500,
+    "escort": 3000,
+    "emp": 2500
+  },
+  "prep": {
+    "first": 45,
+    "between": 60,
+    "bonus": 15
+  }
+}
