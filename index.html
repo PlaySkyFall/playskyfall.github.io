@@ -521,7 +521,7 @@ const PLATE=0.75;
 const FLAK_DIRECT=0.2, TURRET_SPREAD=1.8; // playtest batch 1: share of flak-gunner shells that burst on the target; sentry and C-RAM spread vs before
 // ADS field of view per weapon (scopes zoom harder); the railgun's scope is a full scope overlay
 const ADS_FOV={law:48,mg:50,stinger:40,swarm:44,rail:22}, ADS_FOV2={mg:46,rail:16};
-// Support call-ins: bought as charges at the Personnel desk in Mission Control (max 2 each), called with 6 / 7 / 8 during a wave.
+// Support call-ins: bought as charges at the Personnel Office desk (max 2 each), called with 6 / 7 / 8 during a wave.
 const SUPPORT=[
   {id:'barrage',key:'Digit6',short:'FLAK',name:'Flak Barrage',cost:1500,desc:'6 s of airbursts around whatever you are aiming at.'},
   {id:'escort',key:'Digit7',short:'ESCORT',name:'Fighter Escort',cost:3000,desc:'A friendly jet patrols for 30 s and fires missiles at the nearest aircraft.'},
@@ -718,7 +718,7 @@ function th(x,z){ const d=Math.hypot(x,z), a=Math.atan2(z,x);
 // scattered rocks, scrub and dry grass (instanced; kept off the FOB footprint)
 { let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
   const outside=(x,z)=>x>-86&&x<86&&z>-80&&z<46; // rocks and big scrub stay outside the perimeter
-  const inBase=(x,z)=>x<-73||x>73||z<-67||z>33||Math.hypot(x,z-3)<9||(Math.abs(x)<11&&z>13)||(Math.abs(x)>14&&Math.abs(x)<28&&z>7&&z<19)||(x>14&&x<28&&z>19&&z<29)
+  const inBase=(x,z)=>x<-73||x>73||z<-67||z>33||Math.hypot(x,z-3)<9||(Math.abs(x)<11&&z>13)||(Math.abs(x)>14&&Math.abs(x)<28&&z>7&&z<19)||(x>14&&x<28&&z>19&&z<29)||(x>-28&&x<-14&&z>19&&z<29)||(x>31&&x<41&&z>8&&z<18)||(x>-41&&x<-31&&z>8&&z<18) // + the Pit, the Personnel Office, the Aid Station
     ||(x>-68&&x<-38&&z>-50&&z<-20)||(x>36&&x<68&&z>-52&&z<-26)||(Math.abs(x)<3.5&&z<-8); // structures, the oil rig, the solar farm, the main road
   const scatter=(geo,mat,n,rMin,rMax,sMin,sMax,squash,sink,shadow,tint,blocked)=>{
     const im=new THREE.InstancedMesh(geo,mat,n), o=new THREE.Object3D(), c=new THREE.Color(); let k=0;
@@ -952,8 +952,7 @@ let beacon;
 // Canvas walls block bodies but not bullets (canvas doesn't stop rounds, and bulletproof tents would be a free safe room).
 for(const r of [[-26.2,-25.8,9,17],[-26,-16,8.85,9.15],[-26,-16,16.85,17.15],[-16.15,-15.85,9,11.4],[-16.15,-15.85,14.6,17]]) rectC(r,3.2,L_BODY,{name:'Mess Tent wall'});
 rectC([-26,-16,9,17],4.6,L_WRECK,{name:'Mess Tent roof'}); // wrecks land on the roof
-rectC([-24.0,-23.0,15.9,16.7],2.2,L_BODY,{name:'slot machine'}); rectC([-20.3,-18.7,15.0,16.0],0.8,L_BODY,{name:'dice table'});
-cirC(-19.5,16.35,0.3,1.8,L_BODY,{name:'the Sarge'}); rectC([-17.3,-16.5,10.0,10.6],1.0,L_BODY,{name:'radio crate'});
+rectC([-17.3,-16.5,10.0,10.6],1.0,L_BODY,{name:'radio crate'}); // slots, dice and the Sarge moved to the Gambling Den
 const signs=[];
 function makeSign(lines,w,h,bg,fg,pw,ph){ const c=document.createElement('canvas'); c.width=w; c.height=h; const tex=new THREE.CanvasTexture(c);
   const draw=()=>{ const x=c.getContext('2d'); x.fillStyle=bg; x.fillRect(0,0,w,h); x.strokeStyle=fg; x.lineWidth=5; x.strokeRect(8,8,w-16,h-16); x.fillStyle=fg; x.textAlign='center'; x.textBaseline='middle';
@@ -966,8 +965,6 @@ const STATIONS=[
   {id:'cigs',name:'SMOKES',pos:new THREE.Vector3(-25.6,1.3,11.6)},
   {id:'beer',name:'BEER',pos:new THREE.Vector3(-25.6,1.3,14.4)},
   {id:'armory',name:'UPGRADES BOARD',pos:new THREE.Vector3(-21,1.8,9.2)},
-  {id:'slots',name:'FIELD SLOTS',pos:new THREE.Vector3(-23.5,1.3,15.9)},
-  {id:'dice',name:"SARGE'S DICE",pos:new THREE.Vector3(-19.5,0.95,15.4)},
   {id:'radio',name:'RADIO',pos:new THREE.Vector3(-16.9,0.95,10.3)},
 ];
 let slotLamp, radioLed, viceSigns;
@@ -993,28 +990,19 @@ let slotLamp, radioLed, viceSigns;
   // upgrades board on the left wall
   g.add(mesh(box(3.3,1.8,0.08),M(0x8a6a40),-21,1.8,9.12));
   const s3=makeSign([{t:'ARMORY',f:`72px ${STEN}`},{t:'SQUAD · DEPLOYABLES · UPGRADE GUIDE',f:`700 30px ${COND}`},{t:'press E',f:`600 28px ${COND}`}],512,256,'#2a2418','#e9e4d4',3,1.5); s3.position.set(-21,1.8,9.18); g.add(s3);
-  // slot machine
-  g.add(mesh(box(1.0,1.9,0.8),M(0x7a1f1f,{shininess:60}),-23.5,0.95,16.3)); g.add(mesh(box(1.06,0.3,0.86),M(0xc9a24a,{shininess:80}),-23.5,2.05,16.3));
-  const s4=makeSign([{t:'7 ★ 7',f:`72px ${STEN}`}],256,128,'#100c08','#ffd27a',0.72,0.38); s4.position.set(-23.5,1.4,15.89); s4.rotation.y=Math.PI; g.add(s4);
-  g.add(mesh(new THREE.CylinderGeometry(0.03,0.03,0.6,6),M(0x999999),-22.93,1.4,16.3)); g.add(mesh(new THREE.SphereGeometry(0.07,8,6),M(0xcc2222),-22.93,1.72,16.3));
-  slotLamp=mesh(new THREE.SphereGeometry(0.1,8,6),new THREE.MeshBasicMaterial({color:0xffb020}),-23.5,2.3,16.3,false); g.add(slotLamp);
-  // dice table and the Sarge
-  g.add(mesh(box(1.6,0.78,1.0),wood,-19.5,0.39,15.5)); g.add(mesh(box(1.5,0.03,0.9),M(0x1f5a3a),-19.5,0.795,15.5));
-  for(const [x,z,r] of [[-19.62,15.4,0.4],[-19.4,15.52,1.1]]){ const d=mesh(box(0.08,0.08,0.08),M(0xf4f1e8),x,0.85,z); d.rotation.y=r; g.add(d); }
-  const sarge=makeSoldier(0xff5a3c,'none'); sarge.position.set(-19.5,0,16.35); sarge.rotation.y=Math.PI; sarge.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g.add(sarge);
   // radio by the door
   g.add(mesh(box(0.8,0.7,0.6),wood,-16.9,0.35,10.3)); g.add(mesh(box(0.45,0.28,0.28),M(0x3d4a2c),-16.9,0.84,10.3));
   g.add(mesh(new THREE.CylinderGeometry(0.008,0.008,0.7,4),M(0x222222),-16.75,1.3,10.25));
   radioLed=mesh(new THREE.SphereGeometry(0.025,6,5),new THREE.MeshBasicMaterial({color:0x40ff70}),-16.9,0.88,10.15,false); g.add(radioLed);
   // sign over the entrance
-  const s5=makeSign([{t:'MESS TENT',f:`76px ${STEN}`},{t:'UPGRADES · SMOKES · BEER · CARDS',f:`700 28px ${COND}`}],512,200,'#1d1a14','#f3a81f',3,1.17); s5.position.set(-15.85,3.65,13); s5.rotation.y=Math.PI/2; g.add(s5);
+  const s5=makeSign([{t:'MESS TENT',f:`76px ${STEN}`},{t:'UPGRADES · SMOKES · BEER',f:`700 28px ${COND}`}],512,200,'#1d1a14','#f3a81f',3,1.17); s5.position.set(-15.85,3.65,13); s5.rotation.y=Math.PI/2; g.add(s5);
 }
 // Mission Control: command tent right of the HQ, entrance facing the base (-x).
 // Weapon rack on the back wall, upgrade terminals on the left, personnel + HQ repair on the right, map table in the middle (the wave lever is in the HQ).
 for(const r of [[25.8,26.2,9,17],[16,26,8.85,9.15],[16,26,16.85,17.15],[15.85,16.15,9,11.4],[15.85,16.15,14.6,17]]) rectC(r,3.2,L_BODY,{name:'Mission Control wall'});
 rectC([16,26,9,17],4.6,L_WRECK,{name:'Mission Control roof'});
 rectC([19.4,21.6,12.3,13.7],0.9,L_BODY,{name:'map table'});
-rectC([16.6,25.4,9.1,9.95],1.5,L_BODY,{name:'upgrade terminals'}); rectC([17.4,21.8,15.95,16.9],1.5,L_BODY,{name:'personnel desks'});
+rectC([16.6,25.4,9.1,9.95],1.5,L_BODY,{name:'upgrade terminals'}); rectC([20.1,21.8,15.95,16.9],1.5,L_BODY,{name:'HQ repair terminal'});
 const mcSigns=[];
 function dynSign(w,h,pw,ph,draw){ const c=document.createElement('canvas'); c.width=w; c.height=h; const tex=new THREE.CanvasTexture(c);
   const m=new THREE.Mesh(new THREE.PlaneGeometry(pw,ph),new THREE.MeshBasicMaterial({map:tex}));
@@ -1056,15 +1044,13 @@ const rackGuns={}; let lever, leverLamp, radarDish;
     tag.position.set(25.84,r.y-0.42,r.z); tag.rotation.y=-Math.PI/2; g.add(tag); });
   const rs=makeSign([{t:'ARMORY',f:`64px ${STEN}`},{t:'BUY IT HERE · MK II UPGRADES HERE',f:`700 30px ${COND}`}],512,160,'#14110c','#f3a81f',2.2,0.7); rs.position.set(25.84,3.0,13); rs.rotation.y=-Math.PI/2; g.add(rs);
   // upgrade terminals along the left wall
-  UPGS.forEach((u,i)=>{ const x=UPX[i];
+  UPGS.forEach((u,i)=>{ if(u.id==='armor') return; /* Body Armor is fitted at the Aid Station */ const x=UPX[i];
     g.add(mesh(box(1.5,0.78,0.7),desk,x,0.39,9.55)); g.add(mesh(box(0.9,0.62,0.08),dk,x,1.16,9.42)); g.add(mesh(box(0.1,0.32,0.06),dk,x,0.94,9.32)); g.add(mesh(box(0.34,0.02,0.24),dk,x,0.79,9.3)); g.add(mesh(box(0.6,0.03,0.2),dk,x,0.8,9.75));
     const scr=dynSign(256,176,0.82,0.56,(c,W,H)=>{ const lv=G.upg[u.id], mx=lv>=u.max; framed(c,W,H,'#0b1510','#6fd39a'); c.fillStyle='#e9e4d4'; fitText(c,u.name.toUpperCase(),W/2,H*0.22,W-30,30,700,1);
       for(let k=0;k<u.max;k++){ c.fillStyle=k<lv?'#f3a81f':'#26332b'; c.fillRect(W/2-u.max*16+k*32+3,H*0.42,26,12); }
       c.fillStyle='#8fb59c'; fitText(c,u.desc,W/2,H*0.6,W-34,20,600,2); c.fillStyle=mx?'#6fd39a':'#f3a81f'; c.font=`800 30px ${COND}`; c.fillText(mx?'MAXED':(G.creative?'FREE':'$'+fmt(upgCost(u))),W/2,H*0.83); });
     scr.position.set(x,1.16,9.47); g.add(scr); });
-  // personnel desk and HQ repair terminal on the right wall
-  g.add(mesh(box(1.8,0.78,0.8),desk,18.4,0.39,16.4)); g.add(mesh(box(0.4,0.02,0.3),M(0xe9e4d4),18.2,0.79,16.35)); g.add(mesh(box(0.3,0.02,0.22),M(0xd8c79a),18.8,0.79,16.45));
-  const ps=makeSign([{t:'PERSONNEL',f:`56px ${STEN}`},{t:'SQUAD · FORTIFICATIONS',f:`700 28px ${COND}`}],384,150,'#14110c','#7cc7ff',1.6,0.62); ps.position.set(18.4,2.0,16.78); ps.rotation.y=Math.PI; g.add(ps);
+  // HQ repair terminal on the right wall (the personnel desk moved to the Personnel Office)
   g.add(mesh(box(1.5,0.78,0.7),desk,20.9,0.39,16.45)); g.add(mesh(box(0.9,0.62,0.08),dk,20.9,1.16,16.58)); g.add(mesh(box(0.1,0.32,0.06),dk,20.9,0.94,16.68)); g.add(mesh(box(0.34,0.02,0.24),dk,20.9,0.79,16.7));
   const hs=dynSign(256,176,0.82,0.56,(c,W,H)=>{ const rep=Math.ceil((G.hq.max-G.hq.hp)*0.8); framed(c,W,H,'#150d0b',rep>0?'#ff5a3c':'#6fd39a'); c.fillStyle='#e9e4d4'; c.font=`700 30px ${COND}`; c.fillText('HQ INTEGRITY',W/2,H*0.24);
     c.fillStyle='#26332b'; c.fillRect(30,H*0.42,W-60,16); c.fillStyle=rep>0?'#f3a81f':'#6fd39a'; c.fillRect(30,H*0.42,(W-60)*G.hq.hp/G.hq.max,16);
@@ -1143,6 +1129,82 @@ let hqBoard, hqWaveBoard;
     const s=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.7),new THREE.MeshBasicMaterial({map:new THREE.CanvasTexture(c)})); s.position.set(-7.68,1.75,z); s.rotation.y=Math.PI/2; g.add(s); }
   // over the doorway, outside
   const ds=makeSign([{t:'HQ · OPERATIONS',f:`56px ${STEN}`},{t:'WAVE LEVER INSIDE',f:`700 26px ${COND}`}],448,140,'#14110c','#f3a81f',2.4,0.75); ds.position.set(8.03,3.55,19); ds.rotation.y=Math.PI/2; g.add(ds); }
+// ---- dedicated tents (playtest #13): the Gambling Den, the Personnel Office and the Aid Station. Built like Mission Control:
+// canvas walls (block bodies, not bullets), a ridge roof, a 3.2 m doorway in the middle of one end, a sign over it.
+const TENT_ROOMS=[];
+function makeTent(o){ const {id,x0,x1,z0,z1,door,canvas,col,name,sub,lamp}=o, cx=(x0+x1)/2, cz=(z0+z1)/2, W=x1-x0, D=z1-z0, xd=door==='+x'?x1:x0, xb=door==='+x'?x0:x1;
+  const g=new THREE.Group(); scene.add(g); const cv=M(canvas,{side:THREE.DoubleSide}), cvD=M(new THREE.Color(canvas).multiplyScalar(0.82).getHex(),{side:THREE.DoubleSide}), dk=M(0x2a2620);
+  g.add(mesh(box(W,0.1,D),M(o.floor||0x3b3a33),cx,0.05,cz));
+  g.add(mesh(box(0.12,3.2,D),cv,xb,1.6,cz)); g.add(mesh(box(W,3.2,0.12),cv,cx,1.6,z0)); g.add(mesh(box(W,3.2,0.12),cv,cx,1.6,z1));
+  const L=D/2-1.6; g.add(mesh(box(0.12,3.2,L),cv,xd,1.6,z0+L/2)); g.add(mesh(box(0.12,3.2,L),cv,xd,1.6,z1-L/2)); g.add(mesh(box(0.12,0.6,3.2),cv,xd,2.9,cz));
+  const ang=Math.atan2(1.4,D/2), hyp=Math.hypot(D/2,1.4)+0.1; for(const s of [-1,1]){ const r=mesh(box(W+0.8,0.08,hyp),cvD,cx,3.9,cz+s*D/4); r.rotation.x=s*ang; g.add(r); }
+  for(const x of [x0,x1]) g.add(mesh(vflat([[3.2,z0],[4.6,cz],[3.2,z1]]),cv,x,0,0));
+  g.add(mesh(new THREE.CylinderGeometry(0.07,0.07,W+0.6,6).rotateZ(Math.PI/2),dk,cx,4.6,cz));
+  for(const [x,z] of [[x0,z0],[x0,z1],[x1,z0],[x1,z1],[xd,cz-1.5],[xd,cz+1.5]]) g.add(mesh(box(0.14,3.3,0.14),dk,x,1.65,z));
+  const bulb=new THREE.MeshBasicMaterial({color:lamp}); for(let i=0;i<7;i++) g.add(mesh(new THREE.SphereGeometry(0.06,6,5),bulb,x0+0.8+i*(W-1.6)/6,4.32-(i%2)*0.12,cz,false));
+  const pl=new THREE.PointLight(lamp,1.15*(o.dim||1),16,1.5); pl.position.set(cx,3.3,cz); scene.add(pl);
+  for(const r of [[xb-0.2,xb+0.2,z0,z1],[x0,x1,z0-0.15,z0+0.15],[x0,x1,z1-0.15,z1+0.15],[xd-0.15,xd+0.15,z0,cz-1.6],[xd-0.15,xd+0.15,cz+1.6,z1]]) rectC(r,3.2,L_BODY,{name:name+' wall'});
+  rectC([x0,x1,z0,z1],4.6,L_WRECK,{name:name+' roof'});
+  const s=makeSign([{t:name,f:`68px ${STEN}`},{t:sub,f:`700 28px ${COND}`}],512,200,'#1d1a14',col,3,1.17); s.position.set(xd+(door==='+x'?0.15:-0.15),3.65,cz); s.rotation.y=door==='+x'?Math.PI/2:-Math.PI/2; g.add(s);
+  TENT_ROOMS.push({id,x0,x1,z0,z1}); return {g,cx,cz,xd,xb}; }
+// a terminal like the upgrade terminals in Mission Control: a desk and a live screen with the upgrade's level and price
+function upgTerminal(u){ const t=new THREE.Group(), desk=M(0x4a4136), dk=M(0x24272a);
+  t.add(mesh(box(1.5,0.78,0.7),desk,0,0.39,0.05)); t.add(mesh(box(0.9,0.62,0.08),dk,0,1.16,-0.08)); t.add(mesh(box(0.1,0.32,0.06),dk,0,0.94,-0.18)); t.add(mesh(box(0.34,0.02,0.24),dk,0,0.79,-0.2)); t.add(mesh(box(0.6,0.03,0.2),dk,0,0.8,0.25));
+  const scr=dynSign(256,176,0.82,0.56,(c,W,H)=>{ const lv=G.upg[u.id], mx=lv>=u.max; framed(c,W,H,'#0b1510','#6fd39a'); c.fillStyle='#e9e4d4'; fitText(c,u.name.toUpperCase(),W/2,H*0.22,W-30,30,700,1);
+    for(let k=0;k<u.max;k++){ c.fillStyle=k<lv?'#f3a81f':'#26332b'; c.fillRect(W/2-u.max*16+k*32+3,H*0.42,26,12); }
+    c.fillStyle='#8fb59c'; fitText(c,u.desc,W/2,H*0.6,W-34,20,600,2); c.fillStyle=mx?'#6fd39a':'#f3a81f'; c.font=`800 30px ${COND}`; c.fillText(mx?'MAXED':(G.creative?'FREE':'$'+fmt(upgCost(u))),W/2,H*0.83); });
+  scr.position.set(0,1.16,-0.03); t.add(scr); return t; }
+let potBoard, recordBoard;
+// Gambling Den ("The Pit"), behind the Mess Tent: slots, the Sarge's dice and a high-low table, and a board with the pot
+{ const T=makeTent({id:'den',x0:-26,x1:-16,z0:20,z1:28,door:'+x',canvas:0x4a3a3a,floor:0x3a2a22,col:'#ff5a8a',lamp:0xff8aa0,name:'THE PIT',sub:'SLOTS · DICE · HIGH-LOW · THE POT'}), g=T.g, wood=M(0x6b5235);
+  for(const z of [22.2,25.8]){ g.add(mesh(box(0.8,1.9,1.0),M(0x7a1f1f,{shininess:60}),-25.4,0.95,z)); g.add(mesh(box(0.86,0.3,1.06),M(0xc9a24a,{shininess:80}),-25.4,2.05,z));
+    const s=makeSign([{t:'7 ★ 7',f:`72px ${STEN}`}],256,128,'#100c08','#ffd27a',0.72,0.38); s.position.set(-24.99,1.4,z); s.rotation.y=Math.PI/2; g.add(s);
+    g.add(mesh(new THREE.CylinderGeometry(0.03,0.03,0.6,6),M(0x999999),-25.4,1.4,z+0.57)); g.add(mesh(new THREE.SphereGeometry(0.07,8,6),M(0xcc2222),-25.4,1.72,z+0.57)); }
+  slotLamp=mesh(new THREE.SphereGeometry(0.1,8,6),new THREE.MeshBasicMaterial({color:0xffb020}),-25.4,2.3,22.2,false); g.add(slotLamp);
+  rectC([-25.9,-24.9,21.6,26.4],2.2,L_BODY,{name:'slot machines'});
+  // the Sarge's dice table (near the back wall) and the high-low table (by the door), each with someone running it
+  g.add(mesh(box(1.6,0.78,1.0),wood,-21.5,0.39,27.0)); g.add(mesh(box(1.5,0.03,0.9),M(0x1f5a3a),-21.5,0.795,27.0));
+  for(const [x,z,r] of [[-21.62,26.9,0.4],[-21.4,27.02,1.1]]){ const d=mesh(box(0.08,0.08,0.08),M(0xf4f1e8),x,0.85,z); d.rotation.y=r; g.add(d); }
+  const sarge=makeSoldier(0xff5a3c,'none'); sarge.position.set(-21.5,0,27.6); sarge.rotation.y=Math.PI; g.add(sarge);
+  rectC([-22.3,-20.7,26.5,27.5],0.8,L_BODY,{name:'dice table'}); cirC(-21.5,27.6,0.3,1.8,L_BODY,{name:'the Sarge'});
+  g.add(mesh(box(1.8,0.78,1.1),wood,-20.5,0.39,21.0)); g.add(mesh(box(1.7,0.03,1.0),M(0x7a1f2a),-20.5,0.795,21.0));
+  for(let i=0;i<3;i++){ const cd=mesh(box(0.13,0.01,0.19),M(0xf4f1e8),-20.9+i*0.3,0.81,21.0); cd.rotation.y=0.15*(i-1); g.add(cd); }
+  const dealer=makeSoldier(0x7cc7ff,'none'); dealer.position.set(-20.5,0,20.4); g.add(dealer);
+  rectC([-21.4,-19.6,20.45,21.55],0.8,L_BODY,{name:'high-low table'}); cirC(-20.5,20.4,0.3,1.8,L_BODY,{name:'the dealer'});
+  // the pot, on the back wall above the slots
+  potBoard=dynSign(512,256,1.9,0.95,(c,W,H)=>{ framed(c,W,H,'#14080c','#ff5a8a'); c.fillStyle='#ff9ab8'; c.font=`700 30px ${COND}`; c.fillText('THE POT',W/2,H*0.2);
+    c.fillStyle='#ffd27a'; c.font=`96px ${STEN}`; c.fillText('$'+fmt(G.pot||0),W/2,H*0.52); c.fillStyle='#e9e4d4'; c.font=`600 24px ${COND}`; c.fillText('★ ★ ★ ON THE SLOTS TAKES IT ALL',W/2,H*0.82); });
+  potBoard.position.set(-25.92,2.85,24); potBoard.rotation.y=Math.PI/2; g.add(potBoard);
+  STATIONS.push({id:'slots',name:'FIELD SLOTS',pos:new THREE.Vector3(-24.8,1.3,24)},{id:'dice',name:"SARGE'S DICE",pos:new THREE.Vector3(-21.5,0.95,26.6)},{id:'highlow',name:'HIGH-LOW',pos:new THREE.Vector3(-20.5,0.95,21.4)}); }
+// Personnel Office, right of Mission Control: the personnel desk (resupply, squad, support), your service record and medals,
+// and the promotions desk where perk points are spent
+{ const T=makeTent({id:'office',x0:32,x1:40,z0:9,z1:17,door:'-x',canvas:0x4c5646,floor:0x3b3a33,col:'#7cc7ff',lamp:0xcfe0ff,name:'PERSONNEL',sub:'RECORDS · MEDALS · PERKS · RESUPPLY'}), g=T.g, desk=M(0x4a4136), dk=M(0x24272a);
+  g.add(mesh(box(1.8,0.78,0.8),desk,35,0.39,16.4)); g.add(mesh(box(0.4,0.02,0.3),M(0xe9e4d4),34.8,0.79,16.35)); g.add(mesh(box(0.3,0.02,0.22),M(0xd8c79a),35.4,0.79,16.45));
+  const clerk=makeSoldier(0x7cc7ff,'none'); clerk.position.set(35,0,16.6); clerk.rotation.y=Math.PI; g.add(clerk);
+  const ps=makeSign([{t:'PERSONNEL',f:`56px ${STEN}`},{t:'RESUPPLY · SQUAD · SUPPORT',f:`700 28px ${COND}`}],384,150,'#14110c','#7cc7ff',1.6,0.62); ps.position.set(35,2.1,16.86); ps.rotation.y=Math.PI; g.add(ps);
+  rectC([34.1,35.9,16.0,16.85],1.5,L_BODY,{name:'personnel desk'});
+  g.add(mesh(box(1.5,0.78,0.7),desk,35,0.39,9.55)); g.add(mesh(box(0.1,1.2,0.1),dk,35,1.4,9.3)); rectC([34.25,35.75,9.15,9.95],1.5,L_BODY,{name:'promotions desk'});
+  const pk=makeSign([{t:'PROMOTIONS',f:`52px ${STEN}`},{t:'SPEND PERK POINTS · press E',f:`700 26px ${COND}`}],384,150,'#14110c','#f3a81f',1.5,0.58); pk.position.set(35,2.3,9.14); g.add(pk);
+  recordBoard=dynSign(640,640,2.6,2.6,(c,W,H)=>{ const r=rankOf(G.score); framed(c,W,H,'#0d1113','#7cc7ff'); c.fillStyle='#8fb59c'; c.font=`700 28px ${COND}`; c.fillText('SERVICE RECORD',W/2,46);
+    c.fillStyle='#e9e4d4'; c.font=`64px ${STEN}`; c.fillText(r.name,W/2,108); c.fillStyle='#f3a81f'; c.font=`600 26px ${COND}`; c.fillText(r.next?`${fmt(G.score)} / ${fmt(r.next)} pts to ${RANKS[r.i+1][1]}`:`${fmt(G.score)} pts · top rank`,W/2,152);
+    c.fillStyle='#7cc7ff'; c.fillText(`${perkPoints()} perk point${perkPoints()===1?'':'s'} to spend`,W/2,186);
+    c.textAlign='left'; MEDALS.forEach((m,i)=>{ const got=G.medals&&G.medals[m.id], y=240+i*52; c.fillStyle=got?'#ffd27a':'#3a4448'; c.beginPath(); c.arc(56,y,15,0,7); c.fill();
+      c.fillStyle=got?'#e9e4d4':'#55626a'; c.font=`700 26px ${COND}`; c.fillText(m.name,86,y-8); c.fillStyle=got?'#8fb59c':'#4a565c'; c.font=`500 19px ${COND}`; c.fillText(m.desc,86,y+15); }); });
+  recordBoard.position.set(39.92,1.9,13); recordBoard.rotation.y=-Math.PI/2; g.add(recordBoard);
+  STATIONS.push({id:'personnel',name:'PERSONNEL',pos:new THREE.Vector3(35,1.1,16.0)},{id:'perks',name:'PROMOTIONS',pos:new THREE.Vector3(35,1.2,9.9)}); }
+// Aid Station, left of the Mess Tent: treatment, body armor, a second wind for the next wave, trauma kits for the squad
+{ const T=makeTent({id:'aid',x0:-40,x1:-32,z0:9,z1:17,door:'+x',canvas:0x9a978a,floor:0x4a4a46,col:'#ff5a3c',lamp:0xdde6f0,dim:0.75,name:'AID STATION',sub:'TREATMENT · ARMOR · SECOND WIND'}), g=T.g, wh=M(0xc9c7bf), dk=M(0x24272a);
+  for(const z of [11,15]){ g.add(mesh(box(2.0,0.5,0.9),wh,-38.6,0.55,z)); g.add(mesh(box(0.1,0.3,0.9),dk,-37.6,0.3,z)); g.add(mesh(box(0.1,0.3,0.9),dk,-39.6,0.3,z)); } // cots
+  rectC([-39.7,-37.5,10.5,11.5],0.8,L_BODY,{name:'cot'}); rectC([-39.7,-37.5,14.5,15.5],0.8,L_BODY,{name:'cot'});
+  const doc=makeSoldier(0xffffff,'none'); doc.position.set(-36,0,12.9); doc.rotation.y=Math.PI/2; g.add(doc); cirC(-36,12.9,0.3,1.8,L_BODY,{name:'the doc'});
+  g.add(mesh(box(0.9,0.85,0.6),wh,-36.6,0.43,10.0)); g.add(mesh(box(0.5,0.08,0.3),M(0xb32a22),-36.6,0.9,10.0)); // med cabinet
+  const red=new THREE.MeshBasicMaterial({color:0xd8261e}); g.add(mesh(box(0.06,0.9,0.3),red,-31.9,4.0,13,false)); g.add(mesh(box(0.06,0.3,0.9),red,-31.9,4.0,13,false)); // red cross over the door
+  const arm=UPGS.find(u=>u.id==='armor'), t=upgTerminal(arm); t.position.set(-34.4,0,9.5); g.add(t); rectC([-35.15,-33.65,9.15,9.95],1.5,L_BODY,{name:'armor terminal'});
+  g.add(mesh(box(1.4,0.8,0.7),M(0x4a4136),-34.4,0.4,16.45)); rectC([-35.1,-33.7,16.1,16.8],0.85,L_BODY,{name:'supply desk'});
+  const sw=makeSign([{t:'SECOND WIND',f:`48px ${STEN}`},{t:'GET BACK UP ONCE · NEXT WAVE',f:`700 24px ${COND}`}],384,150,'#1d1414','#ff5a3c',1.5,0.58); sw.position.set(-35.2,2.1,16.86); sw.rotation.y=Math.PI; g.add(sw);
+  const tk=makeSign([{t:'TRAUMA KITS',f:`48px ${STEN}`},{t:'SQUAD +30% HEALTH · FOR GOOD',f:`700 24px ${COND}`}],384,150,'#1d1414','#6fd39a',1.5,0.58); tk.position.set(-33.6,2.1,16.86); tk.rotation.y=Math.PI; g.add(tk);
+  STATIONS.push({id:'treat',name:'TREATMENT',pos:new THREE.Vector3(-36.4,1.3,12.9)},{id:'u:armor',name:'BODY ARMOR',pos:new THREE.Vector3(-34.4,1.16,9.5),uid:'armor'},
+    {id:'wind',name:'SECOND WIND',pos:new THREE.Vector3(-35.0,1.1,16.1)},{id:'kits',name:'TRAUMA KITS',pos:new THREE.Vector3(-33.8,1.1,16.1)}); }
 // ---- Barracks: walk-in tent behind Mission Control (x 16..26, z 20..28), entrance facing the HQ (-x).
 // Six bunks with live name plates (one per squad slot), a roster board with everyone's health and what they do,
 // and recruitment posters along the back wall (walk up, E to recruit).
@@ -2170,7 +2232,7 @@ const keys={}, mouse={x:0,y:0,down:false,zoom:false,inside:false};
 let UPG_GROWTH=0.8; // each upgrade level costs base × (1 + level × growth), rounded to $50; set from prices.json
 const upgCost=u=>Math.round(u.base*(1+G.upg[u.id]*UPG_GROWTH)/50)*50;
 const VICES={cigs:{name:'Cigarettes',unit:'pack',price:200,max:3,buff:'−10% reload',desc:'−10% reload time per pack for the next wave.'},beer:{name:'Beer',unit:'can',price:200,max:3,buff:'+15% shot speed',desc:'+15% projectile velocity per can for the next wave. Your aim drifts a little.'}};
-const dmgMul=()=>1+G.upg.warhead*0.2, reloadMul=()=>Math.pow(0.88,G.upg.loader)*(1-0.1*G.vice.cigs), velMul=()=>1+0.15*G.vice.beer, decoyChance=()=>Math.max(0.08,0.75-G.upg.seeker*0.22);
+const dmgMul=()=>1+G.upg.warhead*0.2, reloadMul=()=>Math.pow(0.88,G.upg.loader)*(1-0.1*G.vice.cigs)*(G.perks&&G.perks.hands?0.9:1), lockMul=()=>G.perks&&G.perks.eye?0.85:1, velMul=()=>1+0.15*G.vice.beer, decoyChance=()=>Math.max(0.08,0.75-G.upg.seeker*0.22);
 const eyeV=V(); function eye(){ if(!P) return eyeV.set(0,1.7,0); return eyeV.set(P.pos.x,P.dead?0.5:1.7+P.bob,P.pos.z); }
 
 const vm=new THREE.Group(); cam.add(vm); const vmModels={};
@@ -2237,7 +2299,7 @@ function updateAnim(rdt){ // returns a camera pitch offset (head tilts back whil
 function newGame(){
   if(G){ for(const e of G.enemies) scene.remove(e.mesh); for(const w of G.wrecks) scene.remove(w.mesh); for(const s of G.shots) if(s.mesh) scene.remove(s.mesh); for(const b of G.eshots) if(b.mesh) scene.remove(b.mesh); for(const s of G.squad){ scene.remove(s.mesh); removeCollider(s.coll); } for(const b of G.builds||[]){ scene.remove(b.mesh); removeCollider(b.coll); } if(G.escort) scene.remove(G.escort.mesh); }
   PS_N.list.length=0; PS_A.list.length=0; for(const d of SCORCH){ d.life=0; d.m.visible=false; }
-  G={wave:0,cash:500,score:0,kills:0,hq:{hp:1000,max:1000,flash:0},enemies:[],shots:[],eshots:[],wrecks:[],flares:[],beams:[],fires:[],squad:[],
+  G={wave:0,cash:500,score:0,kills:0,pot:500,medals:{},perks:{},perkSpent:0,rankI:0,secondWind:false,kits:false,hl:0,hq:{hp:1000,max:1000,flash:0},enemies:[],shots:[],eshots:[],wrecks:[],flares:[],beams:[],fires:[],squad:[],
     popups:[],feed:[],ribbons:[],spawnQ:[],nextQ:buildWave(1),spawnT:0,waveActive:false,clearT:0,shake:0,slow:0,banner:null,multi:{n:0,last:-9},streak:0,
     upg:{warhead:0,loader:0,seeker:0,armor:0,fort:0},mods:{law:false,mg:false,stinger:false,swarm:false,rail:false},mk3:{law:false,mg:false,stinger:false,swarm:false,rail:false},support:{barrage:0,escort:0,emp:0},empT:0,barrage:null,escort:null,vice:{cigs:0,beer:0},bet:100,gmsg:null,shopView:'armory',intermission:false,animQ:[],time:0,
     builds:[],builtN:{},build:{on:false,sel:0,rot:0,snap:true,reason:null,pt:null,target:null,flash:0},prepT:0,zoneIn:null,toast:null,tut:{mc:false,bar:false},teleFall:[],tele:[],lost:false,lostT:0,hintT:14,nameBag:NAMES.slice().sort(()=>Math.random()-0.5),hitT:0,killT:0,hurtDirs:[]};
@@ -2487,7 +2549,8 @@ function dmgEnemy(e,amt,type,owner,wn,fx){
 }
 function killEnemy(e,owner,wn,type){
   e.dead=true; e.wrecked=true; const T=e.T;
-  G.cash+=T.reward; G.score+=T.reward; G.kills++;
+  G.cash+=Math.round(T.reward*(G.perks&&G.perks.scrounge?1.1:1)); G.score+=T.reward; G.kills++; // Scrounger perk: +10% cash
+  if(owner==='YOU') award('first'); if(T.boss) award('boss'); if(G.kills>=100) award('century');
   boom(e.pos,T.boss?3.2:T.kind==='bomber'?2.4:1.6);
   if(e.weakGlows) for(const gl of e.weakGlows) gl.visible=false; // a wreck has no weak points
   if(e.skinU) e.skinU.uDmg.value=1; for(const m of e.mats){ m.color.setHex(0x1a1918); m.emissive.setScalar(0); m.opacity=1; m.transparent=false; m.metalness=0.1; m.roughness=0.95; }
@@ -2522,6 +2585,7 @@ function updatePlayer(dt){
   const ab=!P.dead&&auraNear('ammo',P.pos.x,P.pos.z), rAura=ab?CFG.ammoReloadMul+0.25*(ab.lvl-1):1; P.ammoAura=rAura>1; P.aidAura=!P.dead&&!!auraNear('aid',P.pos.x,P.pos.z);
   for(const w of WEAPONS){const st=P.ws[w.id]; if(st.reload>0){st.reload-=dt*rAura; if(st.reload<=0){st.reload=0;st.ammo=w.mag; if(w===curW()) sfx('reload');}}}
   P.hurt-=dt; P.swap=Math.max(0,(P.swap||0)-dt);
+  if(G.perks&&G.perks.dress&&!P.dead&&P.hp<P.maxhp&&G.time-(P.lastHitT??-99)>5) P.hp=Math.min(P.maxhp,P.hp+3*dt); // Field Dressing perk
   if(P.recPend>1e-5){ const d=P.recPend*Math.min(1,dt*9); P.pitch=clamp(P.pitch-d*0.75,-0.45,1.5); P.recPend-=d; } // recoil recovery (75%)
   if(!locked && mouse.inside && state==='play'){ // fallback steering when the pointer is free
     const nx=mouse.x/innerWidth*2-1, ny=mouse.y/innerHeight*2-1, dz=0.12;
@@ -2581,7 +2645,7 @@ function findStation(){
   return best;
 }
 // walk-in tents (wall centre lines). A station on or inside one belongs to it; you must be inside to use it.
-const ROOMS=[{id:'hq',x0:-8,x1:8,z0:16,z1:28},{id:'mess',x0:-26,x1:-16,z0:9,z1:17},{id:'mc',x0:16,x1:26,z0:9,z1:17},{id:'barracks',x0:16,x1:26,z0:20,z1:28}];
+const ROOMS=[{id:'hq',x0:-8,x1:8,z0:16,z1:28},{id:'mess',x0:-26,x1:-16,z0:9,z1:17},{id:'mc',x0:16,x1:26,z0:9,z1:17},{id:'barracks',x0:16,x1:26,z0:20,z1:28},...TENT_ROOMS];
 function roomAt(x,z,pad){ pad=pad||0; for(const r of ROOMS) if(x>r.x0-pad&&x<r.x1+pad&&z>r.z0-pad&&z<r.z1+pad) return r.id; return null; }
 // metres from the player to the edge of a build's footprint
 function nearBuild(b){ const r=b.fp.r||Math.max(b.fp.hw,b.fp.hd)*0.8; return Math.max(0,Math.hypot(P.pos.x-b.x,P.pos.z-b.z)-r); }
@@ -2589,8 +2653,8 @@ CFG.buildReach=2.6;
 const tentOpen=()=>G.creative||!G.waveActive;
 // Mission Control stations: one per rack weapon and per upgrade terminal, plus personnel and HQ repair; and the wave lever, in the HQ
 WEAPONS.forEach((w,i)=>STATIONS.push({id:'w:'+w.id,name:w.short,pos:new THREE.Vector3(25.6,RACK[i].y,RACK[i].z),wi:i}));
-UPGS.forEach((u,i)=>STATIONS.push({id:'u:'+u.id,name:u.name.toUpperCase(),pos:new THREE.Vector3(UPX[i],1.16,9.5),uid:u.id}));
-STATIONS.push({id:'personnel',name:'PERSONNEL',pos:new THREE.Vector3(18.4,1.1,16.35)},{id:'repair',name:'HQ REPAIR',pos:new THREE.Vector3(20.9,1.16,16.5)},{id:'lever',name:'WAVE LEVER',pos:new THREE.Vector3(0,1.5,26.9)});
+UPGS.forEach((u,i)=>{ if(u.id!=='armor') STATIONS.push({id:'u:'+u.id,name:u.name.toUpperCase(),pos:new THREE.Vector3(UPX[i],1.16,9.5),uid:u.id}); }); // armor: at the Aid Station
+STATIONS.push({id:'repair',name:'HQ REPAIR',pos:new THREE.Vector3(20.9,1.16,16.5)},{id:'lever',name:'WAVE LEVER',pos:new THREE.Vector3(0,1.5,26.9)});
 const $p=n=>G.creative?'FREE':'$'+fmt(n);
 function stationPrompt(s){
   const id=s.id;
@@ -2611,7 +2675,12 @@ function stationPrompt(s){
   if(s.recruit){ const d=SQUAD.find(x=>x.id===s.recruit); return squadCount()>=SQUAD_CAP?`Squad full (${SQUAD_CAP}/${SQUAD_CAP})`:`[E] Recruit a ${d.name} · ${$p(d.cost)}`; }
   if(s.roster) return `Squad roster · ${G.squad.length}/${SQUAD_CAP} on duty`;
   if(id==='repair'){ const rep=Math.ceil((G.hq.max-G.hq.hp)*0.8); return rep<=0?'HQ at full strength':`[E] Repair the HQ · ${$p(Math.min(rep,G.cash))}`; }
-  if(id==='personnel') return '[E] Hire squad · see them in the Barracks (behind this tent)';
+  if(id==='personnel') return '[E] Resupply: weapons, squad, support call-ins, HQ repair';
+  if(id==='perks'){ const n=perkPoints(); return n>0?`[E] Promotions · ${n} perk point${n===1?'':'s'} to spend`:`[E] Promotions · next rank at ${fmt(rankOf(G.score).next||0)} pts`; }
+  if(id==='highlow') return '[E] Play high-low with the dealer';
+  if(id==='treat'){ const c=treatCost(); return c<=0?'Nothing to treat: you and the squad are at full health':`[E] Treatment: you and the squad to full health · ${$p(c)}`; }
+  if(id==='wind') return G.secondWind?'Second Wind ready: if you go down, you get back up once':`[E] Second Wind: get back up once at half health · ${$p(WIND_COST)}`;
+  if(id==='kits') return G.kits?'Trauma kits issued: squad health +30%':`[E] Trauma kits: squad +30% health, for good · ${$p(KITS_COST)}`;
   if(id==='armory') return '[E] Squad & deployables · read what each upgrade does';
   if(id==='slots') return '[E] Play Field Slots';
   if(id==='dice') return '[E] Roll dice with the Sarge';
@@ -2683,7 +2752,7 @@ function buyUpgrade(id){ const u=UPGS.find(x=>x.id===id), cost=upgCost(u); if(G.
   G.cash-=cost; G.upg[id]++; if(id==='armor'){P.maxhp+=40;P.hp=P.maxhp;} if(id==='fort'){G.hq.max+=250;G.hq.hp+=250;} sfx('buy'); return true; }
 function repairHQ(){ const need=Math.ceil((G.hq.max-G.hq.hp)*0.8), pay=Math.min(need,Math.floor(G.cash)); if(pay<=0){ sfx('hit'); return false; } G.cash-=pay; G.hq.hp=Math.min(G.hq.max,G.hq.hp+pay/0.8); sfx('buy'); return true; }
 // Waves only ever start here. Pulling before the prep countdown runs out pays a bonus per second left.
-function pullLever(){ if(!G.intermission) return; if(G.tutorial) endTutorial(false); const bonus=Math.round(G.prepT*CFG.earlyBonusPerSec); sfx('lever'); startWave(); if(bonus>0&&!G.creative) ribbon('EARLY START',bonus); }
+function pullLever(){ if(!G.intermission) return; G.hqAtStart=G.hq.hp; /* for the Iron Wall medal */ if(G.tutorial) endTutorial(false); const bonus=Math.round(G.prepT*CFG.earlyBonusPerSec); sfx('lever'); startWave(); if(bonus>0&&!G.creative) ribbon('EARLY START',bonus); }
 function interact(s){
   if(P.dead) return;
   if(s.id==='lever'){ pullLever(); return; }
@@ -2703,8 +2772,12 @@ function interact(s){
     else { if(!G.creative) G.cash-=d.cost; hire(d); sfx('buy'); const m=G.squad[G.squad.length-1]; popup3(s.pos,`${m.name.toUpperCase()} REPORTING`,'#6fd39a'); refreshMC(); } }
   else if(s.roster){ /* read-only: the card says it all */ }
   else if(s.id==='personnel'||s.id==='armory') openMidShop('armory',s); // the counters where you can buy in person
-  else if(s.id==='slots'||s.id==='dice') openMidShop('mess',s);
-  else if(s.id==='radio') popup3(s.pos,'USE THE LEVER IN MISSION CONTROL','#7cc7ff');
+  else if(s.id==='slots'||s.id==='dice'||s.id==='highlow') openMidShop('mess',s);
+  else if(s.id==='perks') openMidShop('personnel',s);
+  else if(s.id==='treat'){ const r=treat(); popup3(s.pos,r==='ok'?'PATCHED UP':r==='none'?'NOTHING TO TREAT':'NOT ENOUGH CASH',r==='ok'?'#6fd39a':r==='none'?'#8e9a9f':'#ff5a3c'); }
+  else if(s.id==='wind'){ const r=buyWind(); popup3(s.pos,r==='ok'?'SECOND WIND READY':r==='have'?'ALREADY HAVE ONE':'NOT ENOUGH CASH',r==='cash'?'#ff5a3c':'#6fd39a'); }
+  else if(s.id==='kits'){ const r=buyKits(); popup3(s.pos,r==='ok'?'TRAUMA KITS ISSUED':r==='have'?'ALREADY ISSUED':'NOT ENOUGH CASH',r==='cash'?'#ff5a3c':'#6fd39a'); }
+  else if(s.id==='radio') popup3(s.pos,'USE THE LEVER IN THE HQ','#7cc7ff');
 }
 function angTo(p){ tv.subVectors(p,eye()); const d=tv.length(); return {a:Math.acos(clamp(tv.dot(FWD)/d,-1,1)),d}; }
 const swarmN=()=>mk3('swarm')?8:mk2('swarm')?6:4; // missiles per salvo = how many targets it can lock
@@ -2718,7 +2791,7 @@ function updateSwarmLock(w,dt){
   if(!t&&P.locks.length<swarmN()){ let best=1e9; for(const e of G.enemies){ if(!lockable(e)||P.locks.includes(e)) continue; const q=angTo(e.pos); if(q.d>1000) continue; const s=q.a-Math.atan(e.T.r/q.d); if(s<SWARM_CONE&&s<best){best=s;t=e;} } }
   if(t!==P.lockTarget) P.lockT=0;
   P.lockTarget=t;
-  if(t){ const need=P.locks.length?(mk3('swarm')?0.15:0.2):w.lock; P.lockT+=dt; P.lockBeep-=dt;
+  if(t){ const need=(P.locks.length?(mk3('swarm')?0.15:0.2):w.lock)*lockMul(); P.lockT+=dt; P.lockBeep-=dt;
     if(P.lockT>=need){ P.locks.push(t); P.lockTarget=null; P.lockT=0; sfx('locked'); } else if(P.lockBeep<=0){ sfx('lock'); P.lockBeep=0.13; } }
   P.locked=P.locks.length>0; }
 function updateLock(w,dt){
@@ -2728,7 +2801,7 @@ function updateLock(w,dt){
   if(!t){ let best=1e9; for(const e of G.enemies){ if(!lockable(e)) continue; const q=angTo(e.pos); if(q.d>1000) continue; const s=q.a-Math.atan(e.T.r/q.d); if(s<0.055&&s<best){best=s;t=e;} }
     if(t!==P.lockTarget){P.lockT=0;P.locked=false;} }
   P.lockTarget=t;
-  if(t){ P.lockT+=dt; const was=P.locked; P.locked=P.lockT>=w.lock; if(P.locked&&!was) sfx('locked'); P.lockBeep-=dt; if(!P.locked&&P.lockBeep<=0){sfx('lock');P.lockBeep=0.13;} }
+  if(t){ P.lockT+=dt; const was=P.locked; P.locked=P.lockT>=w.lock*lockMul(); if(P.locked&&!was) sfx('locked'); P.lockBeep-=dt; if(!P.locked&&P.lockBeep<=0){sfx('lock');P.lockBeep=0.13;} }
   else {P.lockT=0;P.locked=false;}
 }
 // Shots leave from the barrel tip of the weapon model in your hands (its muzzle-flash anchor), then fly toward the crosshair's aim point.
@@ -2789,7 +2862,8 @@ function fire(w){
 function damagePlayer(a,src){
   if(P.dead||G.lost) return;
   if(G.god){ P.hurt=0.12; if(src) G.hurtDirs.push({x:src.x,z:src.z,t:1.2}); return; }
-  P.hp-=a; P.hurt=0.35; sfx('hit');
+  P.hp-=a; P.hurt=0.35; P.lastHitT=G.time; sfx('hit');
+  if(P.hp<=0&&G.secondWind){ G.secondWind=false; P.hp=Math.round(P.maxhp*0.5); P.hurt=0.8; banner('SECOND WIND','Back on your feet at half health','#ff5a3c'); sfx('ribbon'); return; } // bought at the Aid Station
   if(src) G.hurtDirs.push({x:src.x,z:src.z,t:1.2});
   if(P.hp<=0){P.hp=0;P.dead=true;P.respawn=G.squad.some(s=>s.type==='medic')?3:5;G.streak=0;feed('','','YOU',false,true);P.lockTarget=null;P.locks=[];P.charge=0;mouse.zoom=false;setBuildMode(false);}
 }
@@ -2843,7 +2917,7 @@ function hire(def){
   const nm=def.turret?`${def.rank}-${G.builtN[def.id]}`:`${def.rank} ${G.nameBag.pop()}`;
   const m=def.id==='flak'?makeFlak():makeSoldier(def.band,def.id==='gunner'?'lmg':def.id==='aa'?'aa':def.id==='medic'?'kit':'wrench');
   m.position.set(x,0,z); m.traverse(o=>{if(o.isMesh){o.castShadow=true;}}); scene.add(m);
-  const mem={type:def.id,def,name:nm,slot,x,z,hp:def.hp,max:def.hp,fireT:rand(0.5,2),burst:0,bt:0,yaw:Math.PI,aimP:0.6,walk:0,hurt:0,dead:false,mesh:m,heat:0,cool:0};
+  const mem={type:def.id,def,name:nm,slot,x,z,hp:def.hp*(G.kits?1.3:1),max:def.hp*(G.kits?1.3:1),fireT:rand(0.5,2),burst:0,bt:0,yaw:Math.PI,aimP:0.6,walk:0,hurt:0,dead:false,mesh:m,heat:0,cool:0};
   // turrets are solid and stop enemy fire (which damages them); soldiers are bodies, not colliders
   if(def.turret) mem.coll=cirC(x,z,def.hitR,def.hitH,L_BODY|L_SHOT|L_WRECK,{cat:'turret',owner:mem,name:nm});
   G.squad.push(mem);
@@ -2887,9 +2961,10 @@ function updateSquad(dt){
         const nb=(s.barrel||0)+1, lp=s.fireT<=0&&tgt&&lead(head,tgt,420).clone(), L=lp&&lineUp(s,lp,nb);
         if(L){ s.fireT=0.5; s.barrel=nb; const mz=L.mz; // the twin barrels take turns, once lined up
           // area fire, not a homing gun: 1 shell in 5 bursts on the target, the rest burst 4-12 m off it (partial damage or a miss)
-          const bp=lp.clone(); if(Math.random()>=FLAK_DIRECT) bp.add(tv.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize().multiplyScalar(tgt.T.r+rand(4,12)));
-          const d=bp.clone().sub(mz).normalize(), fuse=bp.distanceTo(mz)/420+rand(-0.02,0.02);
-          G.shots.push({k:'flak',pos:mz,prev:mz.clone(),vel:d.multiplyScalar(420),fuse,dmg:24,R:9,life:4,owner:s.name,wn:s.def.wn,selfC:s.coll});
+          // (shells always leave along the barrel; the miss is in the fuse, bursting short of or past the target)
+          const d=L.d; d.x+=rand(-1,1)*0.012; d.y+=rand(-1,1)*0.012; d.z+=rand(-1,1)*0.012; d.normalize();
+          const off=Math.random()<FLAK_DIRECT?rand(-1,1):(Math.random()<0.5?-1:1)*(tgt.T.r+rand(4,12)), fuse=(lp.distanceTo(mz)+off)/420;
+          G.shots.push({k:'flak',pos:mz,prev:mz.clone(),vel:d.multiplyScalar(420),fuse,dmg:24,R:9,life:4,owner:s.name,wn:s.def.wn,selfC:s.coll,timeOnly:Math.abs(off)>2}); // a shell fused to miss doesn't burst on contact
           sfx('flak',mz); part({t:'flash',x:mz.x,y:mz.y,z:mz.z,vx:0,vy:0,vz:0,life:0.06,size:2.5,r:1,g:0.8,b:0.4}); smoke(mz.x,mz.y,mz.z,{life:0.8,size:1,grow:3}); }
       }
     }
@@ -3017,7 +3092,7 @@ function updateShots(dt){
       if(s.life<=0 && s.life>-0.02 && !s.boomed){ s.boomed=true; }
     }else if(s.k==='flak'){
       s.fuse-=dt; s.prev.copy(s.pos); s.pos.addScaledVector(s.vel,dt);
-      let hit=false; for(const e of G.enemies){ if(!e.dead && segSphere(s.prev,s.pos,e.pos,e.T.r)){hit=true;break;} }
+      let hit=false; if(!s.timeOnly) for(const e of G.enemies){ if(!e.dead && segSphere(s.prev,s.pos,e.pos,e.T.r)){hit=true;break;} }
       if(!hit){ const h=traceFriendly(s,s.prev,s.pos); if(h){ s.pos.copy(h.p); impactFX(h.p,h.c,true); hit=true; } } // a flak shell that clips a wall bursts there
       if(s.fuse<=0||hit){ airBlast(s.pos,s.R,s.dmg,s.owner,s.wn);
         for(let i=0;i<6;i++) smoke(s.pos.x,s.pos.y,s.pos.z,{vx:rand(-3,3),vy:rand(-3,3),vz:rand(-3,3),life:rand(1.5,2.5),size:rand(2,3.5),grow:3,gy:0.3,r:0.12,g:0.11,b:0.1,a:0.75});
@@ -3104,7 +3179,7 @@ function callSupport(id){
   if(state!=='play'||P.dead) return false;
   const S=SUPPORT.find(s=>s.id===id);
   if(!G.waveActive&&!G.creative){ G.toast={t:'NO TARGETS',sub:'Support can only be called during a wave',life:1.8,max:1.8,col:'#8e9a9f'}; sfx('invalid'); return false; }
-  if(!(G.support[id]>0)&&!G.creative){ G.toast={t:`NO ${S.name.toUpperCase()} CHARGES`,sub:`Buy them at the Personnel desk in Mission Control: ${$c(S.cost)} each, ${SUPPORT_MAX} max`,life:1.8,max:1.8,col:'#ff5a3c'}; sfx('invalid'); return false; }
+  if(!(G.support[id]>0)&&!G.creative){ G.toast={t:`NO ${S.name.toUpperCase()} CHARGES`,sub:`Buy them at the Personnel Office desk: ${$c(S.cost)} each, ${SUPPORT_MAX} max`,life:1.8,max:1.8,col:'#ff5a3c'}; sfx('invalid'); return false; }
   if(supportBusy(id)){ sfx('invalid'); return false; }
   if(!G.creative) G.support[id]--;
   if(id==='barrage'){ // centre on the aircraft nearest your crosshair, else a point down your aim line
@@ -3209,7 +3284,8 @@ function ambient(dt){
     for(const w of WEAPONS){ const own=P.ws[w.id].owned; rackGuns[w.id].visible=!own; rackGuns[w.id+'2'].visible=own&&!mk2(w.id); } // Mk I for sale -> Mk II on display -> empty once fitted
     bunkHelmets.forEach((h,i)=>{ const m=G.squad[i]; h.visible=!!(m&&!m.dead&&!m.def.turret); }); // a helmet on the bunk of each soldier on duty
     const pulled=G.waveActive||G.clearT>0; lever.rotation.z+=((pulled?0.6:-0.6)-lever.rotation.z)*Math.min(1,dt*12);
-    if((G.hqBoardT=(G.hqBoardT||0)-dt)<=0&&Math.hypot(P.pos.x-HQ.x,P.pos.z-HQ.z)<22){ G.hqBoardT=0.5; hqBoard.userData.redraw(); hqWaveBoard.userData.redraw(); } // the HQ status board, while you're near it
+    if((G.hqBoardT=(G.hqBoardT||0)-dt)<=0&&Math.hypot(P.pos.x-HQ.x,P.pos.z-HQ.z)<22){ G.hqBoardT=0.5; hqBoard.userData.redraw(); hqWaveBoard.userData.redraw(); }
+    if((G.careerT=(G.careerT||0)-dt)<=0){ G.careerT=0.5; careerTick(); const near=(x,z)=>Math.hypot(P.pos.x-x,P.pos.z-z)<16; if(near(-21,24)) potBoard.userData.redraw(); if(near(36,13)) recordBoard.userData.redraw(); } // ranks, medals; the pot and the service record boards // the HQ status board, while you're near it
     leverLamp.material.color.setHex(pulled?0xff3020:(Math.sin(ambT*5)>0?0x40ff70:0x0d3a18));
     G.mcT=(G.mcT||0)-dt; if(G.mcT<=0){ G.mcT=0.5; refreshMC(); }
   }
@@ -3635,8 +3711,9 @@ function canBet(){ const a=betAmt(); return isFinite(a)&&a>0&&a<=G.cash; }
 function playSlots(){
   if(!canBet()) return; const bet=betAmt(); G.cash-=bet;
   const r=[0,0,0].map(()=>pick(REEL)), same=r[0]===r[1]&&r[1]===r[2], pair=!same&&(r[0]===r[1]||r[1]===r[2]||r[0]===r[2]);
-  const mult=same?(r[0]==='★'?20:6):pair?1.2:0, win=Math.round(bet*mult); G.cash+=win; G.slots=r;
-  G.gmsg=mult>=6?{t:`${r[0]==='★'?'JACKPOT! ':''}Three of a kind · won $${fmt(win)}`,c:'good'}:mult>0?{t:`Pair · paid $${fmt(win)} back`,c:'push'}:{t:`No match · lost $${fmt(bet)}`,c:'bad'};
+  const mult=same?(r[0]==='★'?20:6):pair?1.2:0, jack=same&&r[0]==='★'&&!G.creative?G.pot:0, win=Math.round(bet*mult)+jack; G.cash+=win; G.slots=r;
+  if(jack){ G.pot=POT_START; award('pot'); } else if(!mult) potLoss(bet); // ★ ★ ★ also takes the pot; a losing pull feeds it
+  G.gmsg=mult>=6?{t:`${jack?'JACKPOT! The pot is yours · ':''}Three of a kind · won $${fmt(win)}`,c:'good'}:mult>0?{t:`Pair · paid $${fmt(win)} back`,c:'push'}:{t:`No match · lost $${fmt(bet)}`,c:'bad'};
   G.spun='slots'; sfx(mult>=6?'ribbon':mult>0?'buy':'hit');
 }
 function playDice(){
@@ -3645,13 +3722,80 @@ function playDice(){
   G.dice={you,sg};
   if(ys>ss){ G.cash+=bet*2; G.gmsg={t:`You ${ys} vs Sarge ${ss} · won $${fmt(bet)}`,c:'good'}; sfx('ribbon'); }
   else if(ys===ss){ G.cash+=bet; G.gmsg={t:`Both ${ys} · push, bet returned`,c:'push'}; sfx('buy'); }
-  else { G.gmsg={t:`You ${ys} vs Sarge ${ss} · lost $${fmt(bet)}`,c:'bad'}; sfx('hit'); }
+  else { potLoss(bet); G.gmsg={t:`You ${ys} vs Sarge ${ss} · lost $${fmt(bet)}`,c:'bad'}; sfx('hit'); }
   G.spun='dice';
+}
+// ---- The Pit: the pot and high-low (playtest #13) ----
+// 10% of every losing bet goes into the pot, and it grows $100 a wave; ★ ★ ★ on the slots takes all of it.
+const POT_START=500, POT_CUT=0.1, POT_WAVE=100;
+const potLoss=b=>{ if(!G.creative) G.pot=(G.pot||POT_START)+Math.round(b*POT_CUT); };
+// High-low: you see a card (A=1 .. K=13) and call whether the next one is higher or lower. A tie returns the bet. Each call pays
+// by its odds with an 8% house edge, so no card is a sure thing.
+const HL_EDGE=0.92, CARD=k=>['A','2','3','4','5','6','7','8','9','10','J','Q','K'][k-1];
+function hlPay(k,up){ const pw=(up?13-k:k-1)/13; return pw>0?(HL_EDGE-1/13)/pw:0; }
+function playHighLow(up){ if(!canBet()) return; const k=G.hl||(G.hl=1+(Math.random()*13|0)), m=hlPay(k,up); if(m<=0) return;
+  const bet=betAmt(); G.cash-=bet; const n=1+(Math.random()*13|0); G.hlPrev=k; G.hl=n;
+  if(n===k){ G.cash+=bet; G.gmsg={t:`${CARD(k)} then ${CARD(n)} · a tie, bet returned`,c:'push'}; sfx('buy'); }
+  else if((n>k)===up){ const win=Math.round(bet*m); G.cash+=win; G.gmsg={t:`${CARD(k)} then ${CARD(n)} · called it, won $${fmt(win-bet)}`,c:'good'}; sfx('ribbon'); }
+  else { potLoss(bet); G.gmsg={t:`${CARD(k)} then ${CARD(n)} · lost $${fmt(bet)}`,c:'bad'}; sfx('hit'); }
+  G.spun='hl'; }
+// ---- Personnel Office: ranks, perks and medals ----
+// Rank follows your score; each promotion is a perk point, spent at the promotions desk. Medals are per run.
+const RANKS=[[0,'PRIVATE'],[2000,'CORPORAL'],[6000,'SERGEANT'],[15000,'STAFF SERGEANT'],[30000,'LIEUTENANT'],[55000,'CAPTAIN']];
+function rankOf(s){ let i=0; while(i+1<RANKS.length&&s>=RANKS[i+1][0]) i++; return {i,name:RANKS[i][1],next:i+1<RANKS.length?RANKS[i+1][0]:null}; }
+const perkPoints=()=>Math.max(0,rankOf(G.score).i-(G.perkSpent||0));
+const PERKS=[
+  {id:'hands',name:'Quick Hands',desc:'−10% reload time'},
+  {id:'skin',name:'Thick Skin',desc:'+25 max health'},
+  {id:'scrounge',name:'Scrounger',desc:'+10% cash for every aircraft down'},
+  {id:'eye',name:'Eagle Eye',desc:'Stinger and Swarm lock on 15% faster'},
+  {id:'dress',name:'Field Dressing',desc:'Heal 3 hp/s after 5 s without being hit'},
+];
+function takePerk(id){ if(!PERKS.some(p=>p.id===id)||G.perks[id]||(!G.creative&&perkPoints()<1)) return false;
+  G.perks[id]=true; if(!G.creative) G.perkSpent=(G.perkSpent||0)+1; if(id==='skin'){ P.maxhp+=25; P.hp+=25; } sfx('ribbon'); refreshMC(); return true; }
+const MEDALS=[
+  {id:'first',name:'FIRST BLOOD',desc:'Shoot down your first aircraft'},
+  {id:'wall',name:'IRON WALL',desc:'Finish a wave (from wave 3) with no HQ damage'},
+  {id:'boss',name:'GIANT KILLER',desc:'Bring down a boss'},
+  {id:'sharp',name:'SHARPSHOOTER',desc:'10 railgun weak-point hits'},
+  {id:'century',name:'CENTURION',desc:'100 aircraft down'},
+  {id:'veteran',name:'VETERAN',desc:'Survive 10 waves'},
+  {id:'pot',name:'HIGH ROLLER',desc:'Win the pot in the Pit'},
+];
+function award(id){ if(!G.medals||G.medals[id]||G.creative||G.tutorial) return; G.medals[id]=true; const m=MEDALS.find(x=>x.id===id); G.score+=500;
+  banner(`MEDAL: ${m.name}`,`${m.desc} · +500 score · on your record at the Personnel Office`,'#ffd27a'); sfx('ribbon'); }
+// called twice a second: promotions and the medals that aren't tied to one event
+function careerTick(){ if(G.creative||G.tutorial) return; const r=rankOf(G.score);
+  if(r.i>(G.rankI||0)){ G.rankI=r.i; banner(`PROMOTED: ${r.name}`,'+1 perk point · spend it at the Personnel Office between waves','#7cc7ff'); sfx('ribbon'); }
+  if((G.weakHits||0)>=10) award('sharp'); }
+// end of a wave: the pot grows, and the wave medals
+function careerWaveEnd(){ G.pot=(G.pot||POT_START)+POT_WAVE; if(G.wave>=3&&G.hq.hp>=(G.hqAtStart??0)) award('wall'); if(G.wave>=10) award('veteran'); }
+// ---- Aid Station ----
+const WIND_COST=750, KITS_COST=2500;
+const treatCost=()=>Math.ceil(Math.max(0,P.maxhp-P.hp)+G.squad.reduce((s,m)=>s+Math.max(0,m.max-m.hp),0));
+function treat(){ const c=treatCost(); if(c<=0) return 'none'; if(!G.creative&&G.cash<c) return 'cash'; if(!G.creative) G.cash-=c;
+  P.hp=P.maxhp; for(const m of G.squad) m.hp=m.max; sfx('buy'); return 'ok'; }
+function buyWind(){ if(G.secondWind) return 'have'; if(!G.creative&&G.cash<WIND_COST) return 'cash'; if(!G.creative) G.cash-=WIND_COST; G.secondWind=true; sfx('buy'); return 'ok'; }
+function buyKits(){ if(G.kits) return 'have'; if(!G.creative&&G.cash<KITS_COST) return 'cash'; if(!G.creative) G.cash-=KITS_COST; G.kits=true;
+  for(const m of G.squad){ m.max=Math.round(m.max*1.3); m.hp=Math.round(m.hp*1.3); } sfx('buy'); return 'ok'; }
+// the promotions desk in the Personnel Office: rank, perk points to spend, and the medals this run
+function renderPersonnel(){
+  const cr=G.creative, r=rankOf(G.score), pts=cr?'∞':perkPoints();
+  let h=`<div class="shop-head"><div><div class="eyebrow">Personnel Office · FOB Kestrel</div><h2>${r.name}</h2></div><div class="head-r"><button class="btn alt sm" data-act="armory">← RESUPPLY</button><div class="cash">$${cr?'∞':fmt(G.cash)}</div></div></div>`;
+  h+=`<div class="intel"><b>SERVICE RECORD</b> · ${fmt(G.score)} points · ${G.kills} aircraft down · wave ${G.wave}${r.next?` · next rank, ${RANKS[r.i+1][1]}, at ${fmt(r.next)} points`:' · top rank'}<br>Every promotion is a perk point. <b style="color:var(--friendly)">${pts} to spend.</b></div>`;
+  h+=`<div class="cols"><div class="col"><h3>Perks <span>one each, for this run</span></h3>`;
+  for(const p of PERKS){ const has=G.perks[p.id], can=cr||perkPoints()>0;
+    h+=`<div class="item"><div class="nm">${p.name}</div><div class="act">${has?'<button class="sb ok" disabled>TAKEN</button>':`<button class="sb" data-act="perk" data-id="${p.id}" ${can?'':'disabled'}>TAKE · 1 PT</button>`}</div><div class="ds">${p.desc}</div></div>`; }
+  h+=`</div><div class="col"><h3>Medals <span>${MEDALS.filter(m=>G.medals[m.id]).length}/${MEDALS.length}</span></h3>`;
+  for(const m of MEDALS){ const got=G.medals[m.id];
+    h+=`<div class="item"><div class="nm" style="color:${got?'#ffd27a':'var(--muted)'}">${got?'★ ':'☆ '}${m.name}</div><div class="ds">${m.desc}${got?' · earned':''}</div></div>`; }
+  h+=`</div></div><div class="shop-foot"><p>Medals add 500 points each, which counts toward your next promotion.</p><button class="btn" data-act="close">BACK TO THE FOB</button></div>`;
+  return h;
 }
 function renderMess(){
   const cr=G.creative, c=G.cash, $c=n=>cr?'FREE':'$'+fmt(n), ok=canBet();
-  let h=`<div class="shop-head"><div><div class="eyebrow">${cr?'Creative mode':'Between rounds · FOB Kestrel'}</div><h2>The Mess Tent</h2></div><div class="head-r"><button class="btn alt sm" data-act="armory">← ARMORY</button><div class="cash">$${cr?'∞':fmt(c)}</div></div></div>`;
-  h+=`<div class="intel creative"><b>OFF DUTY</b> Smokes and beer only last for the next wave. ${G.gmsg?`<div class="gmsg ${G.gmsg.c}">${G.gmsg.t}</div>`:'<div class="gmsg"></div>'}</div>`;
+  let h=`<div class="shop-head"><div><div class="eyebrow">${cr?'Creative mode':'Gambling den · FOB Kestrel'}</div><h2>The Pit</h2></div><div class="head-r"><button class="btn alt sm" data-act="armory">← ARMORY</button><div class="cash">$${cr?'∞':fmt(c)}</div></div></div>`;
+  h+=`<div class="intel creative"><b>THE POT $${fmt(G.pot||0)}</b> · ★ ★ ★ on the slots takes all of it. 10% of every losing bet goes in, and it grows $${POT_WAVE} a wave. ${G.gmsg?`<div class="gmsg ${G.gmsg.c}">${G.gmsg.t}</div>`:'<div class="gmsg"></div>'}</div>`;
   h+=`<div class="cols mess"><div class="col"><h3>Vices <span>next wave only</span></h3>`;
   for(const [id,v] of Object.entries(VICES)){ const n=G.vice[id], full=n>=v.max;
     h+=`<div class="item"><div class="nm">${v.name}<span class="pips">${Array.from({length:v.max},(_,k)=>`<i class="${k<n?'on':''}"></i>`).join('')}</span></div><div class="act"><button class="sb" data-act="vice" data-id="${id}" ${full||c<v.price?'disabled':''}>${full?'MAX':$c(v.price)}</button></div><div class="st">${id==='cigs'?`Now −${n*10}% reload`:`Now +${n*15}% velocity`} · per ${v.unit}</div><div class="ds">${v.desc}</div></div>`; }
@@ -3664,7 +3808,12 @@ function renderMess(){
   const dc=G.dice||{you:[6,6],sg:[6,6]};
   h+=`<div class="col game"><h4>Sarge's Dice</h4><div class="dice ${G.spun==='dice'?'spin':''}"><div>You<br><span class="die">${dc.you[0]}</span><span class="die">${dc.you[1]}</span></div><div>Sarge<br><span class="die sarge">${dc.sg[0]}</span><span class="die sarge">${dc.sg[1]}</span></div></div>
     <button class="btn sm" data-act="dice" ${ok?'':'disabled'}>ROLL · $${cr&&G.bet==='all'?'—':fmt(betAmt())}</button>
-    <div class="paytable">Two dice each. Beat the Sarge and win your bet. Tie returns your bet.</div></div></div>`;
+    <div class="paytable">Two dice each. Beat the Sarge and win your bet. Tie returns your bet.</div></div>`;
+  const k=G.hl||(G.hl=1+(Math.random()*13|0)), up=hlPay(k,true), dn=hlPay(k,false), bt=cr&&G.bet==='all'?'—':fmt(betAmt());
+  h+=`<div class="col game"><h4>High-Low</h4><div class="dice ${G.spun==='hl'?'spin':''}"><div>${G.hlPrev?`Last<br><span class="die sarge">${CARD(G.hlPrev)}</span>`:''}</div><div>Showing<br><span class="die">${CARD(k)}</span></div></div>
+    <button class="btn sm" data-act="hl" data-id="up" ${ok&&up>0?'':'disabled'}>HIGHER · pays ×${up>0?up.toFixed(2):'—'}</button>
+    <button class="btn sm" data-act="hl" data-id="down" ${ok&&dn>0?'':'disabled'} style="margin-top:6px">LOWER · pays ×${dn>0?dn.toFixed(2):'—'}</button>
+    <div class="paytable">Call the next card for $${bt}. Aces low. A tie returns your bet. The longer the odds, the bigger the pay.</div></div></div>`;
   h+=cr?`<div class="shop-foot"><p>Back to the range when you are done.</p><button class="btn" data-act="deploy">BACK TO THE RANGE</button></div>`
        :`<div class="shop-foot"><p>The Sarge always wants a rematch. Wave ${G.wave+1} starts when you pull the lever in the HQ.</p><div class="head-r"><button class="btn alt sm" data-act="buildmode">BUILD (F)</button><button class="btn" data-act="close">BACK TO THE FOB</button></div></div>`;
   G.spun=null;
@@ -3672,7 +3821,7 @@ function renderMess(){
 }
 function openShop(){ G.midShop=false; G.shopView='armory'; G.gmsg=null; G.nextQ=buildWave(G.wave+1); mouse.down=false; mouse.zoom=false; setState('shop'); releaseLock(); renderShop(); show('shop',true); }
 function enterIntermission(){ G.intermission=true; G.prepT=CFG.prepAfter; G.nextQ=buildWave(G.wave+1); G.shopView='armory'; G.gmsg=null;
-  banner('INTERMISSION','Resupply in Mission Control or the Mess Tent · pull the lever in the HQ when ready','#f3a81f'); }
+  banner('INTERMISSION','Resupply in Mission Control or the Mess Tent · pull the lever in the HQ when ready','#f3a81f'); careerWaveEnd(); } // medals after, so their banner shows
 // midShop=true means a paused fight (or creative); during intermission the overlay just closes back to the FOB
 // at: the counter you opened it from (the Personnel desk, the Mess Tent board, the slots/dice). Opened with B from
 // anywhere (at=null) it's a read-only field manual: prices, what everything does and where to buy it, but no buying.
@@ -3695,7 +3844,8 @@ function renderShop(){
   const remote=!cr&&!G.shopAt; // opened with B: the field manual (look, don't buy). Buying happens in person at a counter.
   const tag=(price,where)=>`<span class="sb tag" title="${where}">${price}</span>`;
   if(G.shopView==='mess'&&(!mid||cr)&&!remote){ $('shopCard').innerHTML=renderMess(); return; }
-  const messBtn=(!mid||cr)&&!remote?`<button class="btn alt sm" data-act="mess">MESS TENT →</button>`:'';
+  if(G.shopView==='personnel'&&!remote){ $('shopCard').innerHTML=renderPersonnel(); return; }
+  const messBtn=(!mid||cr)&&!remote?`<button class="btn alt sm" data-act="mess">THE PIT →</button>`:'';
   let h=cr?`<div class="shop-head"><div><div class="eyebrow">Creative mode · test range</div><h2>Armory &amp; Spawner</h2></div><div class="head-r">${messBtn}<div class="cash">$∞</div></div></div>`
           :remote?`<div class="shop-head"><div><div class="eyebrow">Wave ${G.wave} ${mid?'in progress':'secured'} · press B or Esc to close</div><h2>Field Manual</h2></div><div class="head-r"><div class="cash">$${fmt(c)}</div></div></div>`
           :`<div class="shop-head"><div><div class="eyebrow">Wave ${G.wave} ${mid?'in progress':'secured'} · FOB Kestrel</div><h2>Resupply &amp; Reinforce</h2></div><div class="head-r">${messBtn}<div class="cash">$${fmt(c)}</div></div></div>`;
@@ -3716,7 +3866,7 @@ function renderShop(){
   }
   else h+=(mid?`<div class="intel"><b>WAVE ${G.wave} · FIGHT PAUSED</b><br>${left} hostile${left===1?'':'s'} still in play. Nothing moves while this is open.</div>`
         :`<div class="intel"><b>INTEL · WAVE ${G.wave+1}</b><br>${intelHTML()}</div>`)
-      +(remote?`<p class="ds" style="margin:8px 0 0"><b>Prices and what everything does.</b> You buy in person: weapons off the rack in Mission Control (that's also where Mk II fits), upgrades at its terminals, HQ repair, support and resupply at its <b>Personnel desk</b>, squad at the <b>Barracks</b> posters, smokes and beer in the <b>Mess Tent</b>. Builds you place from anywhere in the build zone (F).</p>`:'')+`<div class="cols">`;
+      +(remote?`<p class="ds" style="margin:8px 0 0"><b>Prices and what everything does.</b> You buy in person: weapons off the rack in Mission Control (that's also where Mk II fits), upgrades at its terminals (Body Armor at the <b>Aid Station</b>), HQ repair there too; support and resupply at the <b>Personnel Office</b> desk, perks at its promotions desk; squad at the <b>Barracks</b> posters; smokes and beer in the <b>Mess Tent</b>; slots, dice and high-low in <b>the Pit</b>. Builds you place from anywhere in the build zone (F).</p>`:'')+`<div class="cols">`;
   h+=`<div class="col"><h3>Arsenal <span>1–5 to switch</span></h3>`;
   WEAPONS.forEach((w,i)=>{const st=P.ws[w.id];
     const stats=w.kind==='rail'?`${w.dmg} pierce · ${w.mag} shots`:w.kind==='bullet'?`${w.dmg}/round · ${w.mag} belt`:w.kind==='swarm'?`4×${w.dmg} · lock ${w.lock}s`:`${w.dmg} dmg · ${w.lock?`lock ${w.lock}s`:'dumb-fire'}`;
@@ -3728,15 +3878,15 @@ function renderShop(){
     const modWhere=has?'fitted':`${$c(md.cost)} · ${st.owned?'upgrade at this weapon’s rack in Mission Control (the Mk II is on display there)':'buy the weapon first, then upgrade it at its rack'}`;
     h+=`<div class="item ${i===P.wi?'sel':''}"><div class="nm">${i+1} · ${w.name}</div><div class="act" style="display:grid;gap:4px">${btn}${modBtn}</div><div class="st">${stats} · reload ${(w.reload*reloadMul()).toFixed(1)}s</div>
       <div class="ds">${w.desc}</div>${(vt=>`<div class="st"><span style="color:var(--friendly)">Strong vs ${vt.good}</span>${vt.bad?` · <span style="color:var(--hostile)">weak vs ${vt.bad}</span>`:''}</div>`)(vsText(w.id))}<div class="st" style="color:${has?'var(--friendly)':'var(--muted)'}">${has?'✓ Mk II: ':'Mk II: '}<b>${md.name}</b> + ${md.sight.toLowerCase()} · ${md.desc} (${md.stats.map(r=>`${r[0]} ${r[1]} → ${r[2]}`).join(', ')}) · ${modWhere}</div><div class="st" style="color:${mk3(w.id)?'var(--friendly)':'var(--muted)'}">${mk3(w.id)?'✓ Mk III: ':'Mk III: '}<b>${MK3[w.id].name}</b> · ${MK3[w.id].desc} · ${mk3(w.id)?'fitted':`${$c(MK3[w.id].cost)} · at its rack once you have the Mk II, from wave ${MK3_UNLOCK}`}</div></div>`;});
-  h+=`</div><div class="col"><h3>Upgrades</h3>${cr?'':'<p class="ds" style="margin:0 0 8px">Buy these at the terminals in Mission Control. Walk up to a terminal to see exactly what you get before you pay.</p>'}`;
+  h+=`</div><div class="col"><h3>Upgrades</h3>${cr?'':'<p class="ds" style="margin:0 0 8px">Buy these at the terminals in Mission Control (Body Armor at the Aid Station). Walk up to a terminal to see exactly what you get before you pay.</p>'}`;
   for(const u of UPGS){const lv=G.upg[u.id],mx=lv>=u.max,cost=upgCost(u);
-    const act=cr?`<button class="sb" data-act="upg" data-id="${u.id}" ${mx?'disabled':''}>${mx?'MAX':$c(cost)}</button>`:`<span class="sb tag" title="Buy at the ${u.name} terminal in Mission Control">${mx?'MAX':$c(cost)}</span>`;
+    const act=cr?`<button class="sb" data-act="upg" data-id="${u.id}" ${mx?'disabled':''}>${mx?'MAX':$c(cost)}</button>`:`<span class="sb tag" title="Buy at the ${u.name} terminal ${u.id==='armor'?'in the Aid Station':'in Mission Control'}">${mx?'MAX':$c(cost)}</span>`;
     h+=`<div class="item"><div class="nm">${u.name}<span class="pips">${Array.from({length:u.max},(_,k)=>`<i class="${k<lv?'on':''}"></i>`).join('')}</span></div><div class="act">${act}</div>
       <div class="st">${UPG_LABEL[u.id]}: ${upgEffect(u.id,lv)}${mx?' (max)':` → <b style="color:var(--friendly)">${upgEffect(u.id,lv+1)}</b> at level ${lv+1}`}</div><div class="ds">${u.desc}</div></div>`;}
-  h+=`<div class="item"><div class="nm">Repair HQ</div><div class="act">${remote?tag(rep<=0?'FULL':$c(Math.min(rep,c)),'HQ REPAIR desk or the Personnel desk in Mission Control'):`<button class="sb" data-act="repair" ${rep<=0||c<1?'disabled':''}>${rep<=0?'FULL':$c(Math.min(rep,c))}</button>`}</div><div class="ds">HQ ${fmt(G.hq.hp)} / ${fmt(G.hq.max)}. Partial repair if short on cash.</div></div>`;
+  h+=`<div class="item"><div class="nm">Repair HQ</div><div class="act">${remote?tag(rep<=0?'FULL':$c(Math.min(rep,c)),'HQ REPAIR desk or the Personnel Office desk'):`<button class="sb" data-act="repair" ${rep<=0||c<1?'disabled':''}>${rep<=0?'FULL':$c(Math.min(rep,c))}</button>`}</div><div class="ds">HQ ${fmt(G.hq.hp)} / ${fmt(G.hq.max)}. Partial repair if short on cash.</div></div>`;
   h+=`<h3 style="margin-top:14px">Support <span>call in a wave with 6 · 7 · 8</span></h3>`;
   for(const S of SUPPORT){ const n=G.support[S.id], full=n>=SUPPORT_MAX;
-    h+=`<div class="item"><div class="nm">${S.key.slice(5)} · ${S.name}<span class="pips">${Array.from({length:SUPPORT_MAX},(_,k)=>`<i class="${k<n?'on':''}"></i>`).join('')}</span></div><div class="act">${remote?tag(full?'FULL':$c(S.cost),'Buy call-ins at the Personnel desk in Mission Control'):`<button class="sb" data-act="sup" data-id="${S.id}" ${full||c<S.cost?'disabled':''}>${full?'FULL':$c(S.cost)}</button>`}</div><div class="ds">${S.desc}</div></div>`; }
+    h+=`<div class="item"><div class="nm">${S.key.slice(5)} · ${S.name}<span class="pips">${Array.from({length:SUPPORT_MAX},(_,k)=>`<i class="${k<n?'on':''}"></i>`).join('')}</span></div><div class="act">${remote?tag(full?'FULL':$c(S.cost),'Buy call-ins at the Personnel Office desk'):`<button class="sb" data-act="sup" data-id="${S.id}" ${full||c<S.cost?'disabled':''}>${full?'FULL':$c(S.cost)}</button>`}</div><div class="ds">${S.desc}</div></div>`; }
   const crew=G.squad;
   h+=`</div><div class="col"><h3>Squad <span>${crew.length}/${SQUAD_CAP}</span></h3>`;
   h+=`<div class="roster">${crew.length?crew.map(s=>`<span>${s.name}</span>`).join(''):'No one has your back yet. Hire a squad.'}</div>`;
@@ -3774,6 +3924,8 @@ $('shop').addEventListener('click',e=>{
   else if(a==='bet'){ G.bet=id==='all'?'all':+id; }
   else if(a==='slots'){ playSlots(); }
   else if(a==='dice'){ playDice(); }
+  else if(a==='hl'){ playHighLow(id==='up'); }
+  else if(a==='perk'){ takePerk(id); }
   else if(a==='spawn'){ const n=+b.dataset.n, el=b.dataset.elite; let made=0; for(let i=0;i<n&&G.enemies.length<(id==='swarm'?60:30);i++){spawnEnemy(id,null,el?{elite:pick(Object.keys(ELITE_TRAITS))}:null);made++;} if(made) sfx('buy'); else sfx('hit'); }
   else if(a==='lvl'){ G.cwave=clamp((G.cwave||G.wave)+(+id),1,40); if(!G.waveActive) G.wave=G.cwave; }
   else if(a==='cwave'){ const n=G.cwave||G.wave; for(const e of G.enemies){ e.dead=true; scene.remove(e.mesh); } G.enemies=[];
