@@ -159,7 +159,7 @@ body.playing #mute{display:none}
       <div><kbd>Right click</kbd>Zoom</div>
       <div><kbd>1-5</kbd>/<kbd>Wheel</kbd>Weapon</div>
       <div><kbd>R</kbd>Reload · <kbd>Esc</kbd>Pause</div>
-      <div><kbd>B</kbd>Buy menu (any time)</div>
+      <div><kbd>B</kbd>Field manual (prices, where to buy)</div>
       <div><kbd>E</kbd>Interact</div>
       <div><kbd>F</kbd>Build mode · <kbd>X</kbd>Demolish</div>
       <div><kbd>E</kbd>at a gun rack: fit mod · at a build: upgrade</div>
@@ -186,7 +186,7 @@ body.playing #mute{display:none}
     <div class="volGrid" id="volGrid"></div>
     <div class="sens gfxRow">Graphics <button class="sb" type="button" data-gfx="auto">AUTO</button><button class="sb" type="button" data-gfx="low">LOW</button><button class="sb" type="button" data-gfx="med">MED</button><button class="sb" type="button" data-gfx="high">HIGH</button><button class="sb" type="button" data-gfx="ultra">ULTRA</button></div>
     <p class="gfxNote" style="margin:-6px 0 14px;font-size:12px;color:var(--muted)"></p>
-    <p style="margin:0 0 16px;font-size:13px">WASD move · click fire · right-click zoom · 1-5 weapons · R reload · E interact · B shop<br>F build mode (1-9 select, Q/E rotate, G snap, click place, X or right-click demolish) · ` colliders · M mute</p>
+    <p style="margin:0 0 16px;font-size:13px">WASD move · click fire · right-click zoom · 1-5 weapons · R reload · E interact / buy · B field manual<br>F build mode (1-9 select, Q/E rotate, G snap, click place, X or right-click demolish) · ` colliders · M mute</p>
     <div class="row" style="justify-content:center;gap:10px"><button class="btn" id="resumeBtn" type="button">RESUME</button><button class="btn alt" id="menuBtn" type="button">MAIN MENU</button></div>
     <p id="menuWarn" hidden style="margin:10px 0 0;font-size:13px;color:var(--hostile)">This run will be lost. Click again to confirm.</p>
   </div>
@@ -497,7 +497,7 @@ const mk2=id=>!!(G&&G.mods&&G.mods[id]);
 const mkName=w=>`${w.name}${mk2(w.id)?' Mk II':''}`;
 // ADS field of view per weapon (scopes zoom harder); the railgun's scope is a full scope overlay
 const ADS_FOV={law:48,mg:50,stinger:40,swarm:44,rail:22}, ADS_FOV2={mg:46,rail:16};
-// Support call-ins: bought as charges in the shop (max 2 each), called with 6 / 7 / 8 during a wave.
+// Support call-ins: bought as charges at the Personnel desk in Mission Control (max 2 each), called with 6 / 7 / 8 during a wave.
 const SUPPORT=[
   {id:'barrage',key:'Digit6',short:'FLAK',name:'Flak Barrage',cost:1500,desc:'6 s of airbursts around whatever you are aiming at.'},
   {id:'escort',key:'Digit7',short:'ESCORT',name:'Fighter Escort',cost:3000,desc:'A friendly jet patrols for 30 s and fires missiles at the nearest aircraft.'},
@@ -2417,8 +2417,8 @@ function interact(s){
     if(squadCount()>=SQUAD_CAP) popup3(s.pos,'SQUAD FULL','#8e9a9f'); else if(!G.creative&&G.cash<d.cost) popup3(s.pos,'NOT ENOUGH CASH','#ff5a3c');
     else { if(!G.creative) G.cash-=d.cost; hire(d); sfx('buy'); const m=G.squad[G.squad.length-1]; popup3(s.pos,`${m.name.toUpperCase()} REPORTING`,'#6fd39a'); refreshMC(); } }
   else if(s.roster){ /* read-only: the card says it all */ }
-  else if(s.id==='personnel'||s.id==='armory') openMidShop('armory');
-  else if(s.id==='slots'||s.id==='dice') openMidShop('mess');
+  else if(s.id==='personnel'||s.id==='armory') openMidShop('armory',s); // the counters where you can buy in person
+  else if(s.id==='slots'||s.id==='dice') openMidShop('mess',s);
   else if(s.id==='radio') popup3(s.pos,'USE THE LEVER IN MISSION CONTROL','#7cc7ff');
 }
 function angTo(p){ tv.subVectors(p,eye()); const d=tv.length(); return {a:Math.acos(clamp(tv.dot(FWD)/d,-1,1)),d}; }
@@ -2787,7 +2787,7 @@ function callSupport(id){
   if(state!=='play'||P.dead) return false;
   const S=SUPPORT.find(s=>s.id===id);
   if(!G.waveActive&&!G.creative){ G.toast={t:'NO TARGETS',sub:'Support can only be called during a wave',life:1.8,max:1.8,col:'#8e9a9f'}; sfx('invalid'); return false; }
-  if(!(G.support[id]>0)&&!G.creative){ G.toast={t:`NO ${S.name.toUpperCase()} CHARGES`,sub:`Buy them in the shop: ${$c(S.cost)} each, ${SUPPORT_MAX} max`,life:1.8,max:1.8,col:'#ff5a3c'}; sfx('invalid'); return false; }
+  if(!(G.support[id]>0)&&!G.creative){ G.toast={t:`NO ${S.name.toUpperCase()} CHARGES`,sub:`Buy them at the Personnel desk in Mission Control: ${$c(S.cost)} each, ${SUPPORT_MAX} max`,life:1.8,max:1.8,col:'#ff5a3c'}; sfx('invalid'); return false; }
   if(supportBusy(id)){ sfx('invalid'); return false; }
   if(!G.creative) G.support[id]--;
   if(id==='barrage'){ // centre on the aircraft nearest your crosshair, else a point down your aim line
@@ -3181,7 +3181,7 @@ function drawHUD(){
   else if(G.intermission){ txt(G.wave===0?'PREP PHASE':'INTERMISSION',VW/2,34,30,'#f3a81f','center',400);
     if(G.prepT>0){ const s=Math.ceil(G.prepT); txt(`PREP ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}  ·  pull the lever now for +$${fmt(Math.round(G.prepT*CFG.earlyBonusPerSec))}`,VW/2,54,15,'#e9e4d4','center',700); }
     else txt('Prep time is up. Wave '+(G.wave+1)+' starts when you pull the lever in Mission Control',VW/2,54,14,'#e9e4d4','center',600);
-    txt('F build mode · B shop · Mission Control lever starts the wave',VW/2,72,12,'#8e9a9f','center');
+    txt('F build mode · B field manual · Mission Control lever starts the wave',VW/2,72,12,'#8e9a9f','center');
     // next-wave intel, so build choices are informed (NEW types in red)
     if(G.nextQ){ const counts={}; for(const t of waveTypes(G.nextQ)) counts[t]=(counts[t]||0)+1; const seen=seenTypes();
       const parts=Object.entries(counts).map(([k,v])=>[`${ETYPES[k].name} ×${v}`,!seen.has(k)]); hx.font=`700 13px ${FONT}`;
@@ -3336,8 +3336,10 @@ function openShop(){ G.midShop=false; G.shopView='armory'; G.gmsg=null; G.nextQ=
 function enterIntermission(){ G.intermission=true; G.prepT=CFG.prepAfter; G.nextQ=buildWave(G.wave+1); G.shopView='armory'; G.gmsg=null;
   banner('INTERMISSION','Resupply in Mission Control or the Mess Tent · pull the lever when ready','#f3a81f'); }
 // midShop=true means a paused fight (or creative); during intermission the overlay just closes back to the FOB
-function openMidShop(view){ if(state!=='play'||G.lost) return; G.midShop=!G.intermission; G.shopView=view||'armory'; mouse.down=false; mouse.zoom=false; setState('shop'); releaseLock(); renderShop(); show('shop',true); }
-function closeMidShop(){ G.midShop=false; show('shop',false); setState('play'); requestLock(); }
+// at: the counter you opened it from (the Personnel desk, the Mess Tent board, the slots/dice). Opened with B from
+// anywhere (at=null) it's a read-only field manual: prices, what everything does and where to buy it, but no buying.
+function openMidShop(view,at){ if(state!=='play'||G.lost) return; G.midShop=!G.intermission; G.shopView=view||'armory'; G.shopAt=at||null; mouse.down=false; mouse.zoom=false; setState('shop'); releaseLock(); renderShop(); show('shop',true); }
+function closeMidShop(){ G.midShop=false; G.shopAt=null; show('shop',false); setState('play'); requestLock(); }
 // Types the player has already faced (roster introductions plus past bosses), so the intel can flag NEW ones.
 function seenTypes(){ const seen=new Set(); for(let n=1;n<=G.wave;n++){ ROSTER.forEach(r=>{if(r[2]<=n)seen.add(r[0]);}); const b=BOSS_FOR(n); if(b){ seen.add(b); if(b==='carrier') seen.add('drone'); } } if(seen.has('swarm')) seen.add('drone'); return seen; }
 function intelHTML(){
@@ -3352,9 +3354,12 @@ function intelHTML(){
 function renderShop(){
   const c=G.cash, sqFull=squadCount()>=SQUAD_CAP, rep=Math.ceil((G.hq.max-G.hq.hp)*0.8);
   const mid=G.midShop, left=waveTypes(G.spawnQ).length+G.enemies.length, cr=G.creative, $c=n=>cr?'FREE':'$'+fmt(n);
-  if(G.shopView==='mess'&&(!mid||cr)){ $('shopCard').innerHTML=renderMess(); return; }
-  const messBtn=(!mid||cr)?`<button class="btn alt sm" data-act="mess">MESS TENT →</button>`:'';
+  const remote=!cr&&!G.shopAt; // opened with B: the field manual (look, don't buy). Buying happens in person at a counter.
+  const tag=(price,where)=>`<span class="sb tag" title="${where}">${price}</span>`;
+  if(G.shopView==='mess'&&(!mid||cr)&&!remote){ $('shopCard').innerHTML=renderMess(); return; }
+  const messBtn=(!mid||cr)&&!remote?`<button class="btn alt sm" data-act="mess">MESS TENT →</button>`:'';
   let h=cr?`<div class="shop-head"><div><div class="eyebrow">Creative mode · test range</div><h2>Armory &amp; Spawner</h2></div><div class="head-r">${messBtn}<div class="cash">$∞</div></div></div>`
+          :remote?`<div class="shop-head"><div><div class="eyebrow">Wave ${G.wave} ${mid?'in progress':'secured'} · press B or Esc to close</div><h2>Field Manual</h2></div><div class="head-r"><div class="cash">$${fmt(c)}</div></div></div>`
           :`<div class="shop-head"><div><div class="eyebrow">Wave ${G.wave} ${mid?'in progress':'secured'} · FOB Kestrel</div><h2>Resupply &amp; Reinforce</h2></div><div class="head-r">${messBtn}<div class="cash">$${fmt(c)}</div></div></div>`;
   if(cr){
     h+=`<div class="intel creative"><b>SPAWN ENEMIES</b> ${left} in the air · they appear when you return to the range`;
@@ -3371,12 +3376,14 @@ function renderShop(){
       <button class="sb" data-act="quit">Quit to menu</button></div>`;
     h+=`<p style="margin-top:6px;font-size:13px">The wave number also sets the level of anything you spawn by hand (health, late-war damage, elites). Invincible covers you, the HQ, your squad and fortifications. Oil rig and solar farm can be built free at their terminals.</p></div><div class="cols">`;
   }
-  else h+=mid?`<div class="intel"><b>WAVE ${G.wave} · FIGHT PAUSED</b><br>${left} hostile${left===1?'':'s'} still in play. Nothing moves while you shop.</div><div class="cols">`
-        :`<div class="intel"><b>INTEL · WAVE ${G.wave+1}</b><br>${intelHTML()}</div><div class="cols">`;
+  else h+=(mid?`<div class="intel"><b>WAVE ${G.wave} · FIGHT PAUSED</b><br>${left} hostile${left===1?'':'s'} still in play. Nothing moves while this is open.</div>`
+        :`<div class="intel"><b>INTEL · WAVE ${G.wave+1}</b><br>${intelHTML()}</div>`)
+      +(remote?`<p class="ds" style="margin:8px 0 0"><b>Prices and what everything does.</b> You buy in person: weapons off the rack in Mission Control (that's also where Mk II fits), upgrades at its terminals, HQ repair, support and resupply at its <b>Personnel desk</b>, squad at the <b>Barracks</b> posters, smokes and beer in the <b>Mess Tent</b>. Builds you place from anywhere in the build zone (F).</p>`:'')+`<div class="cols">`;
   h+=`<div class="col"><h3>Arsenal <span>1–5 to switch</span></h3>`;
   WEAPONS.forEach((w,i)=>{const st=P.ws[w.id];
     const stats=w.kind==='rail'?`${w.dmg} pierce · ${w.mag} shots`:w.kind==='bullet'?`${w.dmg}/round · ${w.mag} belt`:w.kind==='swarm'?`4×${w.dmg} · lock ${w.lock}s`:`${w.dmg} dmg · ${w.lock?`lock ${w.lock}s`:'dumb-fire'}`;
-    const btn=st.owned?(i===P.wi?`<button class="sb ok" disabled>EQUIPPED</button>`:`<button class="sb ok" data-act="equip" data-id="${i}">EQUIP</button>`):`<button class="sb" data-act="buyw" data-id="${i}" ${c<w.cost?'disabled':''}>$${fmt(w.cost)}</button>`;
+    const btn=st.owned?(i===P.wi?`<button class="sb ok" disabled>EQUIPPED</button>`:`<button class="sb ok" data-act="equip" data-id="${i}">EQUIP</button>`)
+      :remote?tag('$'+fmt(w.cost),'Take it off the weapon rack in Mission Control, or buy it at the Personnel desk'):`<button class="sb" data-act="buyw" data-id="${i}" ${c<w.cost?'disabled':''}>$${fmt(w.cost)}</button>`;
     const md=MODS[w.id], has=G.mods[w.id];
     // mods and upgrades are fitted in person (weapon rack / terminals in Mission Control); the shop explains them. Creative keeps the buttons for testing.
     const modBtn=st.owned&&cr?(has?`<button class="sb ok" disabled>MK II ✓</button>`:`<button class="sb" data-act="mod" data-id="${w.id}">MK II ${$c(md.cost)}</button>`):'';
@@ -3388,14 +3395,14 @@ function renderShop(){
     const act=cr?`<button class="sb" data-act="upg" data-id="${u.id}" ${mx?'disabled':''}>${mx?'MAX':$c(cost)}</button>`:`<span class="sb tag" title="Buy at the ${u.name} terminal in Mission Control">${mx?'MAX':$c(cost)}</span>`;
     h+=`<div class="item"><div class="nm">${u.name}<span class="pips">${Array.from({length:u.max},(_,k)=>`<i class="${k<lv?'on':''}"></i>`).join('')}</span></div><div class="act">${act}</div>
       <div class="st">${UPG_LABEL[u.id]}: ${upgEffect(u.id,lv)}${mx?' (max)':` → <b style="color:var(--friendly)">${upgEffect(u.id,lv+1)}</b> at level ${lv+1}`}</div><div class="ds">${u.desc}</div></div>`;}
-  h+=`<div class="item"><div class="nm">Repair HQ</div><div class="act"><button class="sb" data-act="repair" ${rep<=0||c<1?'disabled':''}>${rep<=0?'FULL':$c(Math.min(rep,c))}</button></div><div class="ds">HQ ${fmt(G.hq.hp)} / ${fmt(G.hq.max)}. Partial repair if short on cash.</div></div>`;
+  h+=`<div class="item"><div class="nm">Repair HQ</div><div class="act">${remote?tag(rep<=0?'FULL':$c(Math.min(rep,c)),'HQ REPAIR desk or the Personnel desk in Mission Control'):`<button class="sb" data-act="repair" ${rep<=0||c<1?'disabled':''}>${rep<=0?'FULL':$c(Math.min(rep,c))}</button>`}</div><div class="ds">HQ ${fmt(G.hq.hp)} / ${fmt(G.hq.max)}. Partial repair if short on cash.</div></div>`;
   h+=`<h3 style="margin-top:14px">Support <span>call in a wave with 6 · 7 · 8</span></h3>`;
   for(const S of SUPPORT){ const n=G.support[S.id], full=n>=SUPPORT_MAX;
-    h+=`<div class="item"><div class="nm">${S.key.slice(5)} · ${S.name}<span class="pips">${Array.from({length:SUPPORT_MAX},(_,k)=>`<i class="${k<n?'on':''}"></i>`).join('')}</span></div><div class="act"><button class="sb" data-act="sup" data-id="${S.id}" ${full||c<S.cost?'disabled':''}>${full?'FULL':$c(S.cost)}</button></div><div class="ds">${S.desc}</div></div>`; }
+    h+=`<div class="item"><div class="nm">${S.key.slice(5)} · ${S.name}<span class="pips">${Array.from({length:SUPPORT_MAX},(_,k)=>`<i class="${k<n?'on':''}"></i>`).join('')}</span></div><div class="act">${remote?tag(full?'FULL':$c(S.cost),'Buy call-ins at the Personnel desk in Mission Control'):`<button class="sb" data-act="sup" data-id="${S.id}" ${full||c<S.cost?'disabled':''}>${full?'FULL':$c(S.cost)}</button>`}</div><div class="ds">${S.desc}</div></div>`; }
   const crew=G.squad;
   h+=`</div><div class="col"><h3>Squad <span>${crew.length}/${SQUAD_CAP}</span></h3>`;
   h+=`<div class="roster">${crew.length?crew.map(s=>`<span>${s.name}</span>`).join(''):'No one has your back yet. Hire a squad.'}</div>`;
-  for(const d of SQUAD) h+=`<div class="item"><div class="nm">${d.name}</div><div class="act"><button class="sb" data-act="hire" data-id="${d.id}" ${sqFull||c<d.cost?'disabled':''}>${$c(d.cost)}</button></div><div class="ds">${d.desc}</div></div>`;
+  for(const d of SQUAD) h+=`<div class="item"><div class="nm">${d.name}</div><div class="act">${remote?tag(sqFull?'FULL':$c(d.cost),'Recruit at the posters in the Barracks, or at the Personnel desk'):`<button class="sb" data-act="hire" data-id="${d.id}" ${sqFull||c<d.cost?'disabled':''}>${$c(d.cost)}</button>`}</div><div class="ds">${d.desc}</div></div>`;
   // deployables come straight from DEPLOYABLES; BUILD takes you into build mode with that item selected
   h+=`<h3 style="margin-top:14px">Deployables <span>${G.builds.length}/${CFG.buildCapTotal} built</span></h3>
     <p class="ds" style="margin:0 0 8px">Upgrade a build to level 2 or 3 by walking up to it, looking at it and pressing <b>E</b>. Each level adds 40% health, repairs it, and makes it better at its job. It costs 75% of the build’s price × its current level.</p>`;
@@ -3411,6 +3418,8 @@ function renderShop(){
 $('shop').addEventListener('click',e=>{
   const b=e.target.closest('[data-act]'); if(!b||b.disabled) return; initAudio();
   const a=b.dataset.act, id=b.dataset.id;
+  // the field manual (opened with B) never sells: buy-type actions only work at a counter or in creative
+  if(!G.creative&&!G.shopAt&&['buyw','upg','mod','sup','repair','hire','vice','slots','dice','bet','mess'].includes(a)) return;
   if(a==='deploy'){ closeMidShop(); return; } // resume only; waves start from the lever
   if(a==='close'){ closeMidShop(); return; }
   if(a==='buildmode'||a==='buildsel'){ if(a==='buildsel') G.build.sel=+id; closeMidShop(); setBuildMode(true); return; } // mid-wave shop goes straight into build mode too
@@ -3593,7 +3602,7 @@ async function loadPrices(){
   applyPrices(effectivePrices()); updatePriceNote(); if(!$('admin').hidden) renderAdmin();
 }
 function updatePriceNote(){ const n=$('priceNote'); n.hidden=!localPrices(); }
-// ---- admin panel (type ADMIN on the menu, pause or shop screen, or open the link with #admin) ----
+// ---- admin panel (type ADMIN on the menu, pause screen or field manual, or open the link with #admin) ----
 let adminBuf='', adminMsg='';
 function openAdmin(){ releaseLock(); if(state==='play') pause(true); renderAdmin(); show('admin',true); }
 function adminFields(){ const p=JSON.parse(JSON.stringify(PRICE_FILE));
