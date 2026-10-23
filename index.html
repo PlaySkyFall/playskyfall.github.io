@@ -3371,9 +3371,14 @@ function drawHUD(){
     txt(`${P.locks.length}/${swarmN()} LOCKED · FIRE TO SPLIT THE SALVO`,VW/2,VH/2+78,13,'#ff3b2a','center',800); }
   if(w.lock && P.lockTarget && !P.dead){ const t=P.lockTarget, s=toScreen(t.pos), lk=w.kind!=='swarm'&&P.locked; // swarm: this is the one being acquired
     if(s.ok){ const d=t.pos.distanceTo(eye()), rr=Math.max(16,t.T.r*620/Math.max(d,1)/(cam.fov/72)), r=rr+(lk?0:(1-P.lockT/w.lock)*30), col=lk?'#ff3b2a':'#ffd23a';
-      hx.save(); hx.translate(s.x,s.y); hx.rotate(lk?0:G.time*3); hx.strokeStyle=col; hx.lineWidth=2.5;
-      for(let i=0;i<4;i++){hx.rotate(Math.PI/2);hx.beginPath();hx.moveTo(r,r-10);hx.lineTo(r,r);hx.lineTo(r-10,r);hx.stroke();} hx.restore();
-      txt(`${lk?'LOCKED':'LOCKING'} · ${Math.round(d)}M`,s.x,s.y+r+18,13,col,'center',800); } }
+      if(w.id==='stinger'){ // a ring that closes onto the target as the seeker settles, then turns solid red on lock (playtest #1)
+        const k=Math.min(1,P.lockT/w.lock), c0=clamp(rr*0.6,14,34), cr=lk?c0:c0+(1-k)*40; /* small and tight, whatever the target's size on screen */
+        hx.save(); hx.strokeStyle=col; hx.globalAlpha=lk?1:0.55+0.45*k; hx.lineWidth=lk?3:1.5; hx.beginPath(); hx.arc(s.x,s.y,cr,0,7); hx.stroke();
+        if(lk){ hx.fillStyle='rgba(255,59,42,0.09)'; hx.fill(); hx.fillStyle=col; hx.beginPath(); hx.arc(s.x,s.y,2.5,0,7); hx.fill(); } hx.restore();
+        txt(`${lk?'LOCKED':'LOCKING'} · ${Math.round(d)}M`,s.x,s.y+cr+18,13,col,'center',800); }
+      else { hx.save(); hx.translate(s.x,s.y); hx.rotate(lk?0:G.time*3); hx.strokeStyle=col; hx.lineWidth=2.5;
+        for(let i=0;i<4;i++){hx.rotate(Math.PI/2);hx.beginPath();hx.moveTo(r,r-10);hx.lineTo(r,r);hx.lineTo(r-10,r);hx.stroke();} hx.restore();
+        txt(`${lk?'LOCKED':'LOCKING'} · ${Math.round(d)}M`,s.x,s.y+r+18,13,col,'center',800); } } }
   // offscreen threat arrows
   for(const e of G.enemies){ if(e.offT>0||(e.T.stealth&&e.reveal<=0)) continue; const d=e.pos.distanceTo(eye()); if(d>700) continue; const s=toScreen(e.pos); if(s.ok) continue;
     tv.copy(e.pos).applyMatrix4(cam.matrixWorldInverse); let a=Math.atan2(-tv.y,tv.x); const cx=VW/2,cy=VH/2, rx=VW*0.42, ry=VH*0.4;
