@@ -1042,6 +1042,7 @@ const rackGuns={}; let lever, leverLamp, radarDish;
   g.add(mesh(box(0.08,2.5,7.2),M(0x5a4a32),25.9,1.7,13));
   WEAPONS.forEach((w,i)=>{ const r=RACK[i], gun=weaponModel(w.id); gun.position.set(25.66,r.y,r.z-0.2); gun.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g.add(gun); rackGuns[w.id]=gun;
     const g2=weaponModel(w.id,true); g2.position.copy(gun.position); g2.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g2.visible=false; g.add(g2); rackGuns[w.id+'2']=g2; // Mk II display piece
+    const g3=weaponModel(w.id,3); g3.position.copy(gun.position); g3.traverse(o=>{if(o.isMesh)o.castShadow=true;}); g3.visible=false; g.add(g3); rackGuns[w.id+'3']=g3; // Mk III display piece
     for(const dz of [-0.35,0.45]) g.add(mesh(box(0.22,0.05,0.05),steel,25.76,r.y-0.1,r.z+dz));
     const tag=dynSign(256,96,0.95,0.36,(x,W,H)=>{ const st=P.ws[w.id], md=G.mods[w.id]; framed(x,W,H,'#14110c',st.owned?(md?'#6fd39a':'#7cc7ff'):'#f3a81f');
       x.fillStyle='#e9e4d4'; x.font=`700 34px ${COND}`; x.fillText(w.short,W/2,H*0.36); x.fillStyle=st.owned?(md?'#6fd39a':'#7cc7ff'):'#f3a81f'; x.font=`800 28px ${COND}`;
@@ -1575,6 +1576,34 @@ function addMk2(g,id){ const add=(geo,mat,x,y,z,rx,ry,rz)=>{const m=mesh(geo,mat
       break;
   }
   u.mk2=true; return g; }
+// Mk III parts (playtest #11: "weapon models for mark 3"), added on top of the Mk II ones, each showing what the upgrade does.
+function addMk3(g,id){ const add=(geo,mat,x,y,z,rx,ry,rz)=>{const m=mesh(geo,mat,x,y,z);if(rx||ry||rz)m.rotation.set(rx||0,ry||0,rz||0);g.add(m);return m;};
+  const cz=(r,l,s)=>cylZ(r,r,l,s||14), W=WM, u=g.userData, orange=M(0xd9641e), chrome=M(0xb9bec4,{shininess:90}), MK3_ORANGE=new THREE.MeshBasicMaterial({color:0xff7a2a}), MK3_SCREEN=new THREE.MeshBasicMaterial({color:0x6dff9a}); // made here: the rack builds these before this point in the file runs
+  switch(id){
+    case 'law': // Tandem: a second tube strapped alongside (two rockets), a precursor probe on the nose, a black-and-white Mk III band
+      add(cz(0.05,0.9),W.olive,0.115,0,0.12); add(cz(0.056,0.03),W.poly,0.115,0,0.57); add(cylZ(0.044,0.044,0.012,14),W.bore,0.115,0,0.588); add(cz(0.057,0.03),W.poly,0.115,0,-0.33);
+      for(const z of [-0.15,0.3]) add(box(0.17,0.016,0.03),W.poly,0.058,0,z);
+      add(cz(0.009,0.16),W.steel,0,0,0.72); add(new THREE.ConeGeometry(0.018,0.04,10).rotateX(Math.PI/2),W.red,0,0,0.82);
+      add(cz(0.0536,0.03),W.poly,0,0,-0.02); for(let i=0;i<3;i++) add(cz(0.0538,0.005),M(0xe9e4d4),0,0,-0.03+i*0.01); break;
+    case 'mg': // Incendiary: an orange-banded can, a belt of red-tipped rounds feeding the gun, a long flash hider
+      add(box(0.114,0.03,0.206),orange,-0.125,-0.02,0.02);
+      for(let i=0;i<9;i++){ const t=i/8, x=-0.1+t*0.08, y=0.0+Math.sin(t*Math.PI)*0.04, z=0.0+t*0.02;
+        add(cylZ(0.007,0.007,0.06,6),W.brass,x,y,z,0,Math.PI/2); add(new THREE.SphereGeometry(0.008,6,5),W.red,x+0.034,y,z); }
+      add(new THREE.CylinderGeometry(0.03,0.022,0.14,10).rotateX(Math.PI/2),W.gun,0,0.01,1.21); for(let i=0;i<4;i++) add(box(0.006,0.05,0.03),W.bore,Math.cos(i*Math.PI/2)*0.027,0.01+Math.sin(i*Math.PI/2)*0.027,1.22);
+      u.muzzle=1.29; break;
+    case 'stinger': // Imaging seeker: dark glass seeker domes, a glowing imaging display on the sight arm, a coolant bottle under the tube
+      for(const x of [0,0.15]){ const d=add(new THREE.SphereGeometry(x?0.05:0.06,14,10,0,Math.PI*2,0,Math.PI/2),M(0x101820,{shininess:120}),x,0,x?0.88:0.99); d.rotation.x=Math.PI/2; }
+      add(box(0.012,0.07,0.1),W.poly,-0.115,0.0,0.24); add(new THREE.PlaneGeometry(0.06,0.085).rotateY(-Math.PI/2),MK3_SCREEN,-0.122,0.0,0.24);
+      add(cz(0.028,0.22),chrome,0,-0.09,0.42); add(cz(0.03,0.02),W.poly,0,-0.09,0.54); break;
+    case 'swarm': // Eight-Pack: two side pods, one more tube each (eight in all), orange hazard stripes
+      for(const s of [-1,1]){ const x=s*0.2; add(box(0.1,0.13,0.6),W.oliveD,x,0.0,0.24); add(cz(0.045,0.05),W.gun,x,0,0.56); add(cylZ(0.036,0.036,0.01,12),W.bore,x,0,0.587);
+        for(let i=0;i<3;i++) add(box(0.102,0.02,0.03),i%2?W.poly:orange,x,0.072,0.2+i*0.12); } break;
+    case 'rail': // Overcharge: orange overcharge coils between the blue ones, a capacitor drum under the barrel, heat-sink fins
+      for(let i=0;i<4;i++){ const t=new THREE.Mesh(new THREE.TorusGeometry(0.06,0.008,6,16),MK3_ORANGE); t.position.set(0,0.06,0.105+i*0.17); g.add(t); }
+      add(cz(0.05,0.42),W.steel,0,-0.1,0.42); for(const z of [0.25,0.42,0.59]) add(cz(0.051,0.02),MK3_ORANGE,0,-0.1,z);
+      for(let i=0;i<5;i++) for(const s of [-1,1]) add(box(0.04,0.06,0.006),W.gun,s*0.063,0.0,0.45+i*0.05); break;
+  }
+  u.mk3=true; return g; }
 function weaponModel(id,isMk2){
   const g=new THREE.Group(), add=(geo,mat,x,y,z,rx,ry,rz)=>{const m=mesh(geo,mat,x,y,z);if(rx||ry||rz)m.rotation.set(rx||0,ry||0,rz||0);g.add(m);return m;};
   const cz=(r,l,s)=>cylZ(r,r,l,s||14), W=WM;
@@ -1633,7 +1662,7 @@ function weaponModel(id,isMk2){
   // Mk I sight eye points (iron sights / stock optics); Mk II overrides them in addMk2
   const SIGHT={law:[0,0.096,-0.1],mg:[0,0.185,-0.16],stinger:[-0.145,0.1,0.0],swarm:[0,0.2,-0.05],rail:[0,0.13,-0.2]};
   if(SIGHT[id]) g.userData.sight=SIGHT[id];
-  if(isMk2) addMk2(g,id);
+  if(isMk2) addMk2(g,id); if(isMk2===3) addMk3(g,id); // isMk2: false, true (Mk II) or 3 (Mk III)
   return g;
 }
 function makeSoldier(band,gun){
@@ -2252,9 +2281,9 @@ const flashTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height
   x.fillStyle=gr; for(let i=0;i<6;i++){ x.rotate(Math.PI/3); x.beginPath(); x.moveTo(0,-9); x.lineTo(62,0); x.lineTo(0,9); x.fill(); } x.beginPath(); x.arc(0,0,22,0,7); x.fill(); return new THREE.CanvasTexture(c); })();
 const flashMat=new THREE.MeshBasicMaterial({map:flashTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,side:THREE.DoubleSide});
 // two first-person builds per weapon (Mk I and Mk II); vmModels[id] always points at the one in use (see syncVM)
-const VM1={}, VM2={};
-function syncVM(){ for(const w of WEAPONS){ const on=mk2(w.id); vmModels[w.id]=on?VM2[w.id]:VM1[w.id]; (on?VM1:VM2)[w.id].visible=false; } }
-for(const mk of [false,true]) for(const w of WEAPONS){ const m=weaponModel(w.id,mk), u=m.userData; m.rotation.y=Math.PI; m.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});
+const VM1={}, VM2={}, VM3={};
+function syncVM(){ for(const w of WEAPONS){ const v=mk3(w.id)?VM3:mk2(w.id)?VM2:VM1; vmModels[w.id]=v[w.id]; for(const o of [VM1,VM2,VM3]) if(o!==v) o[w.id].visible=false; } }
+for(const mk of [false,true,3]) for(const w of WEAPONS){ const m=weaponModel(w.id,mk), u=m.userData; m.rotation.y=Math.PI; m.traverse(o=>{o.castShadow=false;o.receiveShadow=false;});
   if(u.sight){ const a=new THREE.Object3D(); a.position.set(...u.sight); m.add(a); u.sightA=a; } // eye point for aiming down the sight
   const gp=u.grip, fp=u.fore;
   m.add(glove(gp,false)); m.add(glove([fp[0]+0.02,fp[1]-0.01,fp[2]],true));
@@ -2265,7 +2294,7 @@ for(const mk of [false,true]) for(const w of WEAPONS){ const m=weaponModel(w.id,
   const sh=new THREE.Mesh(new THREE.PlaneGeometry(0.22,0.5),flashMat); sh.rotation.x=Math.PI/2; sh.position.z=0.12; fl.add(sh);
   const sv=new THREE.Mesh(new THREE.PlaneGeometry(0.5,0.22),flashMat); sv.rotation.y=Math.PI/2; sv.position.z=0.12; fl.add(sv);
   m.add(fl); u.flash=fl; if(u.vmOff) m.position.set(...u.vmOff); if(u.vmScale) m.scale.setScalar(u.vmScale);
-  m.visible=false; vm.add(m); (mk?VM2:VM1)[w.id]=m; if(!mk) vmModels[w.id]=m; }
+  m.visible=false; vm.add(m); (mk===3?VM3:mk?VM2:VM1)[w.id]=m; if(!mk) vmModels[w.id]=m; }
 // first-person vice props (camera space)
 const emberMat=new THREE.MeshBasicMaterial({color:0xff5a1a});
 const vmCig=new THREE.Group();
@@ -3304,7 +3333,7 @@ function ambient(dt){
   WM.glowC.color.setHSL(0.52,1,0.56+0.1*Math.sin(ambT*5));
   if((GQ==='high'||GQ==='ultra')&&P&&Math.random()<dt*16){ const e=eye(); part({t:'spark',x:e.x+rand(-9,9),y:e.y+rand(-1.2,3),z:e.z+rand(-9,9),vx:rand(-0.15,0.15),vy:rand(-0.05,0.08),vz:rand(-0.15,0.15),life:rand(4,7),size:0.035,drag:1,gy:0,r:1,g:0.86,b:0.66}); }
   if(G&&P){
-    for(const w of WEAPONS){ const own=P.ws[w.id].owned; rackGuns[w.id].visible=!own; rackGuns[w.id+'2'].visible=own&&!mk2(w.id); } // Mk I for sale -> Mk II on display -> empty once fitted
+    for(const w of WEAPONS){ const own=P.ws[w.id].owned; rackGuns[w.id].visible=!own; rackGuns[w.id+'2'].visible=own&&!mk2(w.id); rackGuns[w.id+'3'].visible=own&&mk2(w.id)&&!mk3(w.id)&&mk3Open(); } // Mk I for sale -> Mk II on display -> Mk III on display from wave 12 -> empty once fitted
     bunkHelmets.forEach((h,i)=>{ const m=G.squad[i]; h.visible=!!(m&&!m.dead&&!m.def.turret); }); // a helmet on the bunk of each soldier on duty
     const pulled=G.waveActive||G.clearT>0; lever.rotation.z+=((pulled?0.6:-0.6)-lever.rotation.z)*Math.min(1,dt*12);
     if((G.hqBoardT=(G.hqBoardT||0)-dt)<=0&&Math.hypot(P.pos.x-HQ.x,P.pos.z-HQ.z)<22){ G.hqBoardT=0.5; hqBoard.userData.redraw(); hqWaveBoard.userData.redraw(); }
