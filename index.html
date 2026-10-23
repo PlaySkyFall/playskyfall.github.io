@@ -2192,17 +2192,35 @@ function newGame(){
 
 /* ================= enemies ================= */
 // The HQ must stay last: pickGroundTarget('hq') boosts the last entry for bombers. Decoy masts outweigh both the HQ and its bomber boost.
-function groundTargets(){ const c=[]; if(!P.dead) c.push({x:P.pos.x,y:1,z:P.pos.z,w:3}); for(const s of G.squad) c.push({x:s.x,y:1,z:s.z,w:1});
+function groundTargets(){ const c=[]; if(!P.dead) c.push({x:P.pos.x,y:1,z:P.pos.z,w:3,you:true}); for(const s of G.squad) c.push({x:s.x,y:1,z:s.z,w:1,squad:true});
   let dw=CFG.decoyWeight; for(const b of G.builds) if(b.def.tag==='decoy'){ c.push({x:b.x,y:3,z:b.z,w:dw,decoy:b}); dw*=0.5; } // a second mast only adds half the pull
   for(const id in G.obj) if(objUp(id)) c.push({x:OBJ_DEF[id].x,y:2,z:OBJ_DEF[id].z,w:WAVE.objWeight(G.wave),obj:id}); // the oil rig and solar farm draw fire too (more so late)
   const tw=WAVE.turretWeight(G.wave); if(tw>0) for(const b of G.builds) if(!b.dead&&b.def.tag==='turret') c.push({x:b.x,y:Math.min(b.def.h*0.6,1.6),z:b.z,w:tw,build:b}); // late: they hunt your turrets
   c.push({x:HQ.x,y:3,z:HQ.z,w:1.5,hq:true}); return c; }
-function pickGroundTarget(bias){ const c=groundTargets(); if(bias==='hq') c[c.length-1].w=5;
+// Each enemy type has a job (playtest #18: targeting "doesn't make sense"). The lottery above stays, but each job scales what
+// it cares about: bombers go for the HQ and objectives, jets hunt turrets and you, helicopters fight whatever is near them.
+// Decoy masts keep their pull for everyone (they must still beat the HQ for bombers).
+const JOBS={
+  bomber:{you:0.3,squad:0.3,obj:2.5,turret:0.5,hq:1},
+  jet:{you:1.6,squad:0.8,obj:0.6,turret:2.5,turretEarly:1.2,hq:0.4},
+  heli:{you:1,squad:1,obj:1,turret:1,hq:0.7,near:80},
+};
+const jobOf=T=>!T?null:T.kind==='bomber'||T.fire==='carpet'?'bomber':T.kind==='jet'||T.kind==='stealth'?'jet':T.kind==='heli'?'heli':null;
+function jobTargets(c,e){ const J=JOBS[jobOf(e&&e.T)]; if(!J) return c;
+  if(J.turretEarly&&WAVE.turretWeight(G.wave)<=0) for(const b of G.builds) if(!b.dead&&b.def.tag==='turret') c.splice(c.length-1,0,{x:b.x,y:Math.min(b.def.h*0.6,1.6),z:b.z,w:J.turretEarly,build:b}); // jets hunt turrets from the start
+  for(const o of c){ if(o.decoy) continue; o.w*=o.hq?J.hq:o.obj?J.obj:o.build?J.turret:o.squad?J.squad:J.you;
+    if(J.near) o.w*=1+3*Math.exp(-Math.hypot(o.x-e.pos.x,o.z-e.pos.z)/J.near); } // helicopters: what's close counts far more
+  return c; }
+// a helicopter sticks with its target for 6-10 s (or until it's gone) instead of re-rolling every burst
+function heliTarget(e){ const h=e.htg;
+  if(!h||G.time>e.htgT||(h.build&&h.build.dead)||(h.obj&&!objUp(h.obj))||(h.you&&P.dead)){ e.htg=pickGroundTarget(null,e); e.htgT=G.time+rand(6,10); }
+  else if(h.you){ h.x=P.pos.x; h.z=P.pos.z; } return e.htg; }
+function pickGroundTarget(bias,e){ const c=jobTargets(groundTargets(),e); if(bias==='hq') c[c.length-1].w=5;
   else if(G.wave>=WAVE.lateFrom) for(const o of c) if(o.decoy) o.w*=WAVE.decoyLate; /* late jets and helis see through decoys more often */
   let tot=0; for(const o of c) tot+=o.w; let r=Math.random()*tot; for(const o of c){r-=o.w;if(r<=0) return o;} return c[c.length-1]; }
 function lockable(e){return !e.dead && !(e.offT>0) && (!e.T.stealth || e.reveal>0);}
 function newPass(e){
-  const T=e.T; let tgt=pickGroundTarget(T.fire==='carpet'?'hq':null);
+  const T=e.T; let tgt=pickGroundTarget(T.fire==='carpet'?'hq':null,e);
   if(e.raid&&objUp(e.raid)) tgt={x:OBJ_DEF[e.raid].x+rand(-5,5),z:OBJ_DEF[e.raid].z+rand(-5,5)}; // raiding jet: bomb run on the objective
   else e.raid=null;
   if(T.fire==='emp'){ // aim for the densest knot of turrets (or any deployables), else the HQ
@@ -2245,11 +2263,11 @@ function spawnEnemy(type,at,opt){
   if(T.boss){banner(`${T.bossName} INBOUND`,T.tip.replace('BOSS. ',''),'#ff5a3c');sfx('horn');}
   return e;
 }
-// Cruise missiles pick a target on launch: a turret 40% of the time (any build 20%), otherwise the HQ.
+// Cruise missiles pick a target on launch: a turret 50% of the time (60% late), any build up to 80%, else an objective or the HQ.
 function aimCruise(e){
   const turrets=G.builds.filter(b=>!b.dead&&b.def.tag==='turret'), any=G.builds.filter(b=>!b.dead), r=Math.random(), late=G.wave>=WAVE.lateFrom;
-  const b=turrets.length&&r<(late?0.55:0.4)?pick(turrets):any.length&&r<(late?0.65:0.6)?pick(any):null, objs=Object.keys(G.obj).filter(objUp);
-  e.cm=b?{x:b.x,z:b.z,y:Math.min(b.def.h*0.6,1.5),name:b.name,b}:objs.length&&Math.random()<(late?0.5:0.35)?(id=>({x:OBJ_DEF[id].x,z:OBJ_DEF[id].z,y:2,name:OBJ_DEF[id].name}))(pick(objs)):{x:HQ.x,z:HQ.z,y:3,name:'HQ'};
+  const b=turrets.length&&r<(late?0.6:0.5)?pick(turrets):any.length&&r<0.8?pick(any):null, objs=Object.keys(G.obj).filter(objUp); // their job: your buildings
+  e.cm=b?{x:b.x,z:b.z,y:Math.min(b.def.h*0.6,1.5),name:b.name,b}:objs.length&&Math.random()<(late?0.7:0.6)?(id=>({x:OBJ_DEF[id].x,z:OBJ_DEF[id].z,y:2,name:OBJ_DEF[id].name}))(pick(objs)):{x:HQ.x,z:HQ.z,y:3,name:'HQ'};
   const a=rand(-1.3,1.3)+Math.PI, d=rand(800,880), sx=e.cm.x+Math.sin(a)*d, sz=e.cm.z+Math.cos(a)*d; e.pos.set(sx,th(sx,sz)+20,sz);
   G.toast={t:`CRUISE MISSILE → ${e.cm.name}`,sub:'Fast and low. Shoot it down',life:2,max:2,col:'#ff5a3c'}; sfx('alarm');
 }
@@ -2310,7 +2328,7 @@ function updateEnemies(dt){
       for(const r of e.rotors) r.rotation.y+=dt*(T.boss?14:24); if(e.tail) e.tail.rotation.x+=dt*40;
       if(Math.random()<dt*2) sfx('heli',e.pos);
       e.fireT-=dt;
-      const late=G.wave>=WAVE.lateFrom, tg0=e.fireT<=0?(e.raid?{x:OBJ_DEF[e.raid].x+rand(-6,6),y:2,z:OBJ_DEF[e.raid].z+rand(-6,6)}:pickGroundTarget()):null;
+      const late=G.wave>=WAVE.lateFrom, tg0=e.fireT<=0?(e.raid?{x:OBJ_DEF[e.raid].x+rand(-6,6),y:2,z:OBJ_DEF[e.raid].z+rand(-6,6)}:heliTarget(e)):null;
       // early helis open fire near you; late ones engage their own target from standoff range
       if(e.fireT<=0 && !G.hold && !(G.empT>0) && (late?Math.hypot(tg0.x-e.pos.x,tg0.z-e.pos.z)<650:e.pos.distanceTo(eye())<(T.fire==='carrier'?700:520))){
         const tg=tg0;
