@@ -482,7 +482,7 @@ const WEAPONS=[
   {id:'mg',name:'M2 .50 Cal',short:'.50 CAL',desc:'Hold to spray. Shreds light helis, weak vs armor. Reveals stealth.',kind:'bullet',dmg:7,speed:520,mag:80,reload:2.6,delay:0.065,spread:0.009,cost:700},
   {id:'stinger',name:'FIM-92 Stinger',short:'STINGER',desc:'Hold the crosshair on a target to lock. Heat-seeker; jets pop flares.',kind:'missile',dmg:150,splash:7,speed:235,mag:1,reload:1.9,delay:0.2,lock:0.7,cost:1800},
   {id:'swarm',name:'Hydra Swarm Pod',short:'SWARM',desc:'Sweep the crosshair across a group to lock up to 4 targets; the salvo splits between them. Saturates flares.',kind:'swarm',dmg:50,splash:6,speed:215,mag:2,reload:3.0,delay:0.4,lock:0.4,cost:3600},
-  {id:'rail',name:'Skybreaker Railgun',short:'RAIL',desc:'Hold to charge, release to fire. A full charge through a glowing weak point (engines, rotor hubs, radar domes) does ×2.5. Pierces every aircraft in line.',kind:'rail',dmg:200,mag:3,reload:3.0,delay:0.55,cost:7000},
+  {id:'rail',name:'Skybreaker Railgun',short:'RAIL',desc:'Hold to charge, release to fire. A full charge through a glowing weak point (engines, rotor hubs, radar domes) does ×2. Pierces every aircraft in line.',kind:'rail',dmg:200,mag:3,reload:4.0,delay:0.55,cost:7000},
 ];
 // Tier-2 weapon mods: one per weapon, fitted at that weapon's rack in Mission Control once you own it. Prices live in prices.json (mods).
 // stats: [what changes, before, after] for the explain card.
@@ -514,10 +514,11 @@ const mk3Open=()=>G.creative||G.wave+1>=MK3_UNLOCK;
 const mkName=w=>`${w.name}${mk3(w.id)?' Mk III':mk2(w.id)?' Mk II':''}`;
 // Railgun: hold to charge, release to fire. A tap does 25%; a full charge (RAIL_CHARGE_T s, faster with Mk II) does 100%.
 // Weak points (engines, rotor hubs, radar dome) take x2.5 from a full charge, x1.5 from a partial one, and ignore plating.
-const RAIL_CHARGE_T=1.2, RAIL_CHARGE_T2=0.95, RAIL_WEAK_FULL=2.5, RAIL_WEAK_PART=1.5;
+const RAIL_CHARGE_T=1.2, RAIL_CHARGE_T2=0.95, RAIL_WEAK_FULL=2.0, RAIL_WEAK_PART=1.5;
 // Armor plating: bombers, AWACS and bosses shrug off part of every bullet and railgun body hit (rockets, missiles and
 // weak-point hits go through), so the big targets want explosives or a well-aimed rail shot, not just more lead.
 const PLATE=0.75;
+const FLAK_DIRECT=0.2, TURRET_SPREAD=1.8; // playtest batch 1: share of flak-gunner shells that burst on the target; sentry and C-RAM spread vs before
 // ADS field of view per weapon (scopes zoom harder); the railgun's scope is a full scope overlay
 const ADS_FOV={law:48,mg:50,stinger:40,swarm:44,rail:22}, ADS_FOV2={mg:46,rail:16};
 // Support call-ins: bought as charges at the Personnel desk in Mission Control (max 2 each), called with 6 / 7 / 8 during a wave.
@@ -544,7 +545,7 @@ const vsMul=(wn,T)=>{ const id=WN_ID[wn]; return id?(WEAPON_VS[id][tclass(T)]||1
 const vsText=id=>{ const v=WEAPON_VS[id], good=Object.entries(v).filter(([,m])=>m>1).sort((a,b)=>b[1]-a[1]), bad=Object.entries(v).filter(([,m])=>m<1);
   return {good:good.map(([k,m])=>`${TCLASS_NAME[k]} ×${m}`).join(', '),bad:bad.map(([k,m])=>`${TCLASS_NAME[k]} ×${m}`).join(', ')}; };
 WEAPONS.forEach(w=>WN_ID[w.name]=w.id);
-const RAIL_BASE={mag:3,reload:3.0}, LAW_BASE={mag:1};
+const RAIL_BASE={mag:3,reload:4.0}, LAW_BASE={mag:1};
 function applyMods(){ const r=WEAPONS.find(w=>w.id==='rail'), on=G&&G.mods&&G.mods.rail; r.mag=on?5:RAIL_BASE.mag; r.reload=on?RAIL_BASE.reload*0.7:RAIL_BASE.reload;
   WEAPONS.find(w=>w.id==='law').mag=mk3('law')?2:LAW_BASE.mag; syncVM(); }
 function buyMk3(id){ const m=MK3[id]; if(!mk2(id)||mk3(id)||!mk3Open()||(!G.creative&&G.cash<m.cost)){ sfx('hit'); return false; }
@@ -1146,7 +1147,8 @@ const OBJ_DEF={
     dmg:[0,0.15,0.30,0.50], laser:[0,18,22,26], empMul:[1,1,1,0.5], cost:{2:6000,3:9000}, rebuildPct:40,
     desc:'Powers your turrets: sentries, C-RAMs and lasers hit harder, lasers fire longer, and at level 3 EMPs only knock them out for half as long.'},
 };
-const objRebuild=id=>Math.round(OBJ_DEF[id].buy*OBJ_DEF[id].rebuildPct/100/50)*50;
+const OBJ_REBUILD_STEP=0.10; // each rebuild of the same objective costs 10% more than the last (playtest batch 1)
+const objRebuild=id=>Math.round(OBJ_DEF[id].buy*OBJ_DEF[id].rebuildPct/100*Math.pow(1+OBJ_REBUILD_STEP,(G&&G.obj&&G.obj[id].rebuilds)||0)/50)*50;
 const objUnlocked=id=>G&&(G.creative||G.wave+1>=OBJ_DEF[id].unlock); // buyable in the prep before its unlock wave
 const objMax=(id,l)=>Math.round(OBJ_DEF[id].hp*(1+0.3*(l-1)));
 const OBJV={}; // visuals: pumpjack beam, flare flame, panel material; site = the built structures, plot = the empty construction plot
@@ -1338,6 +1340,13 @@ function updPS(ps,dt){
 }
 const SMOKE=[0.42,0.40,0.38], DARK=[0.1,0.09,0.09];
 function smoke(x,y,z,o){part(Object.assign({t:'smoke',x,y,z,vx:0,vy:0,vz:0,life:1.5,size:2,grow:3,drag:0.97,gy:1,r:SMOKE[0],g:SMOKE[1],b:SMOKE[2],a:0.5},o));}
+// a shot-down bomb or rocket: a sharp white pop, a scatter of sparks and a small grey puff that hangs in the air. Deliberately
+// unlike boom(), so C-RAM intercepts overhead don't read as bombs going off in random places (playtest note).
+function interceptFX(p){
+  part({t:'flash',x:p.x,y:p.y,z:p.z,vx:0,vy:0,vz:0,life:0.07,size:5,r:1,g:0.95,b:0.85});
+  for(let i=0;i<10;i++){const v=tv.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize().multiplyScalar(rand(15,35));part({t:'spark',x:p.x,y:p.y,z:p.z,vx:v.x,vy:v.y,vz:v.z,life:rand(0.2,0.45),size:0.3,drag:0.96,gy:-20,r:1,g:0.9,b:0.6});}
+  for(let i=0;i<3;i++) smoke(p.x+rand(-0.8,0.8),p.y+rand(-0.5,0.5),p.z+rand(-0.8,0.8),{life:rand(2.5,3.5),size:rand(1.6,2.4),grow:2.2,drag:0.9,gy:0.15,a:0.45,r:0.42,g:0.42,b:0.44});
+  sfx('flak',p); }
 function boom(p,s,silent){
   if(s>=0.7) fireball(p,s);
   for(let i=0;i<14*s;i++){const v=tv.set(rand(-1,1),rand(-0.6,1),rand(-1,1)).normalize().multiplyScalar(rand(3,18)*s);part({t:'fire',x:p.x,y:p.y,z:p.z,vx:v.x,vy:v.y,vz:v.z,life:rand(0.25,0.65),size:rand(2.5,5)*s,grow:-2*s,drag:0.9,gy:3});}
@@ -1817,11 +1826,11 @@ const DEPLOYABLES=[
     mask:L_BODY|L_SHOT|L_WRECK,desc:'Heals you 8 HP/s and the squad 4 HP/s within 7 m.'},
   {id:'decoy',name:'Decoy Radar Mast',short:'DECOY',cost:400,hp:300,fp:{r:0.9},h:6,cap:2,unlock:2,tag:'decoy',make:makeDecoy,
     mask:L_BODY|L_SHOT|L_WRECK,desc:'A hot radar signature. Bomb runs and strafing favour it over the HQ.'},
-  {id:'sentry',name:'Sentry Gun',short:'SENTRY',cost:900,hp:240,fp:{r:0.9},h:1.6,cap:3,unlock:3,tag:'turret',wn:'Sentry .50',make:makeSentry,
+  {id:'sentry',name:'Sentry Gun',short:'SENTRY',cost:900,hp:192,fp:{r:0.9},h:1.6,cap:3,unlock:3,tag:'turret',wn:'Sentry .50',make:makeSentry,
     mask:L_BODY|L_SHOT|L_WRECK,desc:'Automated .50 cal. Does not use a squad slot.'},
-  {id:'cram',name:'C-RAM Phalanx',short:'C-RAM',cost:4500,hp:420,fp:{r:1.6},h:3.2,cap:4,group:'heavy',unlock:6,tag:'turret',wn:'Phalanx 20mm',make:makeCram,
+  {id:'cram',name:'C-RAM Phalanx',short:'C-RAM',cost:4500,hp:336,fp:{r:1.6},h:3.2,cap:4,group:'heavy',unlock:6,tag:'turret',wn:'Phalanx 20mm',make:makeCram,
     mask:L_BODY|L_SHOT|L_WRECK,desc:'Radar gatling. Shoots down 60% of incoming rockets and bombs (90% with two).'},
-  {id:'laser',name:'Ultrasonic Laser',short:'LASER',cost:8500,hp:360,fp:{r:1.6},h:5,cap:4,group:'heavy',unlock:8,tag:'turret',wn:'Ultrasonic Laser',make:makeLaser,
+  {id:'laser',name:'Ultrasonic Laser',short:'LASER',cost:8500,hp:288,fp:{r:1.6},h:5,cap:4,group:'heavy',unlock:8,tag:'turret',wn:'Ultrasonic Laser',make:makeLaser,
     mask:L_BODY|L_SHOT|L_WRECK,desc:'Continuous beam that ignores armor and flares. 2 s cooldown every 15 s.'},
   {id:'hesco',name:'HESCO Block',short:'HESCO',cost:40,hp:110,fp:{w:1,d:0.8},h:1.1,cap:60,unlock:1,tag:'cover',make:makeHescoBlock,stack:true,
     mask:L_BODY|L_SHOT|L_SHIELD|L_WRECK,desc:'One HESCO unit: fill gaps, build corners and towers. Stacks on blocks or on a barricade\'s units (up to 3 high).'},
@@ -1976,8 +1985,9 @@ function lvlStats(b,l){ const k=p=>1+p*(l-1), D=b.def, out=[['Health',fmt(Math.r
   else if(D.id==='ammo') out.push(['Reload speed nearby',`×${(CFG.ammoReloadMul+0.25*(l-1)).toFixed(2)}`]);
   return out; }
 function demolishBuild(b){ // refunds this piece and everything stacked on it
+  if(!b||b.dead||b.refunded) return 0; // a build pays back once, however long X is held (playtest: "unlimited money")
   const all=[], walk=x=>{ all.push(x); for(const k of x.kids) walk(k); }; walk(b);
-  const r=all.reduce((s,x)=>s+refundOf(x),0); if(!G.creative) G.cash+=r; destroyBuild(b,false); dust(tv.set(b.x,(b.y0||0),b.z).clone(),10,1.5); sfx('demolish');
+  const r=all.reduce((s,x)=>s+(x.refunded||x.dead?0:refundOf(x)),0); for(const x of all) x.refunded=true; if(!G.creative) G.cash+=r; destroyBuild(b,false); dust(tv.set(b.x,(b.y0||0),b.z).clone(),10,1.5); sfx('demolish');
   popup3(tv.set(b.x,(b.y0||0)+b.def.h+0.6,b.z),G.creative?'DEMOLISHED':`REFUND +$${fmt(r)}${all.length>1?` (${all.length} pieces)`:''}`,'#6fd39a'); return r; }
 // ---- build mode ----
 const ghostRoot=new THREE.Group(); ghostRoot.visible=false; scene.add(ghostRoot);
@@ -2034,7 +2044,7 @@ function updSentry(b,dt){
   if(b.fireT<=0&&tgt){ b.burst=10; b.fireT=rand(1.6,2.1); }
   if(b.burst>0&&tgt){ b.bt-=dt; const L=b.bt<=0&&lineUp(b,lead(from,tgt,520).clone()); // from the barrel tip, along the barrel
     if(L){ b.burst--; b.bt=0.07; const mz=L.mz, d=L.d;
-    d.x+=rand(-1,1)*0.012; d.y+=rand(-1,1)*0.012; d.z+=rand(-1,1)*0.012; d.normalize();
+    const sp=0.012*TURRET_SPREAD; d.x+=rand(-1,1)*sp; d.y+=rand(-1,1)*sp; d.z+=rand(-1,1)*sp; d.normalize();
     G.shots.push({k:'bullet',pos:mz,prev:mz.clone(),vel:d.multiplyScalar(520),dmg:6*lvlK(b,0.35)*(1+solarK()),life:1.2,owner:b.name,wn:b.def.wn,team:true,selfC:b.coll});
     if(Math.random()<0.5) part({t:'flash',x:mz.x,y:mz.y,z:mz.z,vx:0,vy:0,vz:0,life:0.04,size:0.8,r:1,g:0.8,b:0.4}); sfx('lmg',from); } }
   else if(!tgt) b.burst=0;
@@ -2332,7 +2342,8 @@ function updateEnemies(dt){
       const along=(e.pos.x-ps.tx)*ps.dir.x+(e.pos.z-ps.tz)*ps.dir.z, sp=e.vel.length();
       const fall=Math.sqrt(2*Math.max(5,e.pos.y-2-th(ps.tx,ps.tz))/20), rel=-sp*0.85*fall; // from the real drop height (the plane bobs +-4 m; bombs leave 2 m below it), so they land on the warning ring
       if(G.hold&&!e.tutDrop){ /* creative or training: enemies hold fire (except the training bomber) */ }
-      else if(T.fire==='carpet'){ e.dropT-=dt; if(Math.abs(along-rel)<70 && e.dropT<=0){ e.dropT=0.32; dropBomb(e,0); if(T.stealth) e.reveal=Math.max(e.reveal,1.5); } } // bomb bay open: a stealth bomber shows itself
+      else if(T.fire==='carpet'){ e.dropT-=dt; if(Math.abs(along-rel)<70 && e.dropT<=0){ e.dropT=0.32; dropBomb(e,0); if(T.stealth) e.reveal=Math.max(e.reveal,1.5); } // bomb bay open: a stealth bomber shows itself
+        if(T.boss) wraithGuided(e,dt); }
       else if(T.fire==='emp'){ if(!e.dropped && along>=rel){ e.dropped=true; dropBomb(e,0,true); } }
       else if(!e.dropped && along>=rel){ e.dropped=true; for(let i=0;i<(T.stealth?3:2);i++) dropBomb(e,i); }
       if(!e.snd && e.pos.distanceTo(eye())<380){ e.snd=true; sfx('jet',e.pos); }
@@ -2354,7 +2365,20 @@ function updateEnemies(dt){
   for(const e of G.enemies) if(e.dead && !e.wrecked) scene.remove(e.mesh);
   G.enemies=G.enemies.filter(e=>!e.dead);
 }
-function dropBomb(e,i,emp){ const b={k:'bomb',pos:e.pos.clone().addScaledVector(e.pass.dir,-i*6),vel:e.vel.clone().multiplyScalar(0.85),dmg:emp?8:T_BOMB(e),R:emp?CFG.empR:10,src:e.pos.clone(),emp}; b.pos.y-=2; b.mesh=projMesh(G_BOMB,emp?MAT_EMP:MAT_BOMB); G.eshots.push(b); }
+// The Wraith's precision strikes (playtest: "more destructive", bombs "right on top of" the player's turrets): besides its carpet,
+// every few seconds it releases a guided bomb at the turret nearest its track, or at you when there's none. The bomb steers onto
+// its mark as it falls, so moving turrets or standing still matters; you get a warning when one leaves the rack.
+const WRAITH_GUIDED_T=2.6, WRAITH_GUIDED_REACH=200, GUIDE_ACC=30;
+function wraithGuided(e,dt){ e.gT=(e.gT===undefined?1.5:e.gT)-dt; if(e.gT>0) return; e.gT=WRAITH_GUIDED_T;
+  const dir=e.pass.dir, reach=(x,z)=>{ const dx=x-e.pos.x, dz=z-e.pos.z, ah=dx*dir.x+dz*dir.z; return ah>-10&&ah<WRAITH_GUIDED_REACH&&Math.abs(dx*dir.z-dz*dir.x)<110?Math.hypot(dx,dz):Infinity; }; // ahead of it, within a bomb's glide
+  let mark=null, bd=Infinity; for(const b of G.builds){ if(b.dead||b.def.tag!=='turret') continue; const d=reach(b.x,b.z); if(d<bd){ bd=d; mark=b; } }
+  if(!mark&&!P.dead&&reach(P.pos.x,P.pos.z)<Infinity) mark={get x(){ return P.pos.x; }, get z(){ return P.pos.z; }, player:true};
+  if(!mark) return; const b=dropBomb(e,0); b.guide=mark; b.dmg*=1.3; e.reveal=Math.max(e.reveal,2);
+  G.toast={t:'PRECISION BOMB',sub:mark.player?'The Wraith is bombing YOU: move!':`Guided bomb falling on your ${mark.name}`,life:1.8,max:1.8,col:'#ff5a3c'}; sfx('alarm'); }
+// steer a guided bomb: change its sideways speed (up to GUIDE_ACC m/s²) so it lands on its mark
+function guideBomb(b,dt){ const g=b.guide; if(g.dead){ b.guide=null; return; } const tl=Math.max(0.3,(b.vel.y+Math.sqrt(b.vel.y*b.vel.y+40*Math.max(1,b.pos.y-th(g.x,g.z))))/20);
+  const k=GUIDE_ACC*dt; b.vel.x+=clamp((g.x-b.pos.x)/tl-b.vel.x,-k,k); b.vel.z+=clamp((g.z-b.pos.z)/tl-b.vel.z,-k,k); }
+function dropBomb(e,i,emp){ const b={k:'bomb',pos:e.pos.clone().addScaledVector(e.pass.dir,-i*6),vel:e.vel.clone().multiplyScalar(0.85),dmg:emp?8:T_BOMB(e),R:emp?CFG.empR:10,src:e.pos.clone(),emp}; b.pos.y-=2; b.mesh=projMesh(G_BOMB,emp?MAT_EMP:MAT_BOMB); G.eshots.push(b); return b; }
 // EMP bomb: every deployable within CFG.empR goes dark for CFG.empT seconds (no shooting, healing or reload aura).
 CFG.empR=30; CFG.empT=10;
 const MAT_EMP=new THREE.MeshBasicMaterial({color:0x7cc7ff});
@@ -2676,7 +2700,7 @@ function fire(w){
         // from the side or behind: head-on, the nose is in the way.
         let weak=null; const nose=e.mesh.getWorldDirection(tv3);
         for(const wp of e.weak||[]){ if(e.T.stealth&&e.reveal<=0) break; if(wp.rear&&FWD.dot(nose)<-0.5) continue; const p=weakWorld(e,wp); tv2.subVectors(p,o); const tt=tv2.dot(FWD); if(tt<0) continue; if(tv2.lengthSq()-tt*tt<wp.r*wp.r){ weak=p; break; } }
-        if(weak){ weakHits++; sparks(weak,26,[1,0.6,0.25]); flashLight(weak,2.2,0.15); popup3(weak,full?'WEAK POINT ×2.5':'WEAK POINT',full?'#ff8a3a':'#ffc27a'); }
+        if(weak){ weakHits++; sparks(weak,26,[1,0.6,0.25]); flashLight(weak,2.2,0.15); popup3(weak,full?'WEAK POINT ×2':'WEAK POINT',full?'#ff8a3a':'#ffc27a'); }
         dmgEnemy(e,base*fall*(weak?(full?RAIL_WEAK_FULL:RAIL_WEAK_PART):1),'rail','YOU',w.name,(weak||over>=0.999)?'pierce':undefined); }
       if(hits>=2) ribbon('COLLATERAL',75*hits);
       if(weakHits&&full) G.weakHits=(G.weakHits||0)+weakHits;
@@ -2783,8 +2807,10 @@ function updateSquad(dt){
           const m={k:'missile',pos:from,fresh:true,vel:d.clone().multiplyScalar(40),spd:40,max:215,acc:150,turn:2.3,target:tgt,dmg:110,R:7,life:7,owner:s.name,wn:s.def.wn,evt:-1}; m.mesh=projMesh(G_ROCKET,MAT_MISSILE); G.shots.push(m); sfx('missile',from); }
       }else if(s.type==='flak'){
         const nb=(s.barrel||0)+1, lp=s.fireT<=0&&tgt&&lead(head,tgt,420).clone(), L=lp&&lineUp(s,lp,nb);
-        if(L){ s.fireT=0.5; s.barrel=nb; const mz=L.mz, d=L.d, fuse=lp.distanceTo(mz)/420+rand(-0.05,0.05); // the twin barrels take turns, once lined up
-          d.x+=rand(-1,1)*0.012; d.y+=rand(-1,1)*0.012; d.z+=rand(-1,1)*0.012; d.normalize();
+        if(L){ s.fireT=0.5; s.barrel=nb; const mz=L.mz; // the twin barrels take turns, once lined up
+          // area fire, not a homing gun: 1 shell in 5 bursts on the target, the rest burst 4-12 m off it (partial damage or a miss)
+          const bp=lp.clone(); if(Math.random()>=FLAK_DIRECT) bp.add(tv.set(rand(-1,1),rand(-1,1),rand(-1,1)).normalize().multiplyScalar(tgt.T.r+rand(4,12)));
+          const d=bp.clone().sub(mz).normalize(), fuse=bp.distanceTo(mz)/420+rand(-0.02,0.02);
           G.shots.push({k:'flak',pos:mz,prev:mz.clone(),vel:d.multiplyScalar(420),fuse,dmg:24,R:9,life:4,owner:s.name,wn:s.def.wn,selfC:s.coll});
           sfx('flak',mz); part({t:'flash',x:mz.x,y:mz.y,z:mz.z,vx:0,vy:0,vz:0,life:0.06,size:2.5,r:1,g:0.8,b:0.4}); smoke(mz.x,mz.y,mz.z,{life:0.8,size:1,grow:3}); }
       }
@@ -2818,8 +2844,8 @@ function updCram(s,dt){
   const L=s.cool<=0&&s.bt<=0&&lineUp(s,aim); // from the end of the barrel cluster, along it
   if(L){ const mz=L.mz, d=L.d;
     s.bt=0.03; s.heat+=0.03*1.5; if(s.heat>=2.4){ s.cool=0.8; s.heat=0; }
-    if(thr){ thr.engaged=(thr.engaged||0)+0.03; if(thr.engaged>=0.6&&!thr.dead){ thr.dead=true; boom(thr.pos,0.8); popup3(thr.pos,'INTERCEPTED','#7cc7ff'); G.intercepts=(G.intercepts||0)+1; } }
-    d.x+=rand(-1,1)*0.006; d.y+=rand(-1,1)*0.006; d.z+=rand(-1,1)*0.006; d.normalize();
+    if(thr){ thr.engaged=(thr.engaged||0)+0.03; if(thr.engaged>=0.6&&!thr.dead){ thr.dead=true; interceptFX(thr.pos); popup3(thr.pos,'INTERCEPTED','#7cc7ff'); G.intercepts=(G.intercepts||0)+1; } }
+    const sp=0.006*TURRET_SPREAD; d.x+=rand(-1,1)*sp; d.y+=rand(-1,1)*sp; d.z+=rand(-1,1)*sp; d.normalize();
     G.shots.push({k:'bullet',pos:mz,prev:mz.clone(),vel:d.multiplyScalar(SPD),dmg:4*(1+solarK()),life:0.6,owner:s.name,wn:s.def.wn,team:true,cram:true,selfC:s.coll});
     if(Math.random()<0.5) part({t:'flash',x:mz.x,y:mz.y,z:mz.z,vx:0,vy:0,vz:0,life:0.03,size:1.6,r:1,g:0.85,b:0.5});
     sfx('cram',from);
@@ -2886,7 +2912,7 @@ function updateShots(dt){
       s.prev.copy(s.pos); s.pos.addScaledVector(s.vel,dt);
       { const h=traceFriendly(s,s.prev,s.pos); if(h){ s.pos.copy(h.p); impactFX(h.p,h.c,false); s.life=0; continue; } } // into a wall: stop here
       for(const e of G.enemies){ if(!e.dead && segSphere(s.prev,s.pos,e.pos,e.T.r)){ dmgEnemy(e,s.dmg,s.ap?'bulletAP':'bullet',s.owner,s.wn,s.inc?'inc':undefined); s.life=0; break; } }
-      if(s.life>0) for(const b of G.eshots){ if(b.k!=='bullet'&&!b.dead&&(!s.cram||b.fate)&&segSphere(s.prev,s.pos,b.pos,s.cram?2.2:1.6)){ b.dead=true; s.life=0; boom(b.pos,0.8);
+      if(s.life>0) for(const b of G.eshots){ if(b.k!=='bullet'&&!b.dead&&(!s.cram||b.fate)&&segSphere(s.prev,s.pos,b.pos,s.cram?2.2:1.6)){ b.dead=true; s.life=0; interceptFX(b.pos);
         if(s.owner==='YOU'){ popup3(b.pos,'INTERCEPT +$10','#7cc7ff'); G.cash+=10; } else { G.intercepts=(G.intercepts||0)+1; if(s.cram) popup3(b.pos,'INTERCEPTED','#7cc7ff'); } break; } }
     }else if(s.k==='rocket'){
       s.vel.y-=3*dt; s.pos.addScaledVector(s.vel,dt); carryOn(s,dt);
@@ -2929,7 +2955,7 @@ function updateEShots(dt){
   for(const b of G.eshots){
     if(b.dead) continue;
     const prev=tv2.copy(b.pos);
-    if(b.k==='bomb') b.vel.y-=20*dt; if(b.k==='rocket'){ b.vel.y-=2*dt; smoke(b.pos.x,b.pos.y,b.pos.z,{life:1.1,size:0.5,grow:1.8,gy:0.3}); }
+    if(b.k==='bomb'){ b.vel.y-=20*dt; if(b.guide) guideBomb(b,dt); } if(b.k==='rocket'){ b.vel.y-=2*dt; smoke(b.pos.x,b.pos.y,b.pos.z,{life:1.1,size:0.5,grow:1.8,gy:0.3}); }
     b.pos.addScaledVector(b.vel,dt);
     const hit=traceEnemyShot(prev,b.pos);
     if(b.k==='bullet'){
@@ -2977,7 +3003,7 @@ function upgradeObj(id){ const o=G.obj[id], c=objCost(id), D=OBJ_DEF[id];
     for(let i=0;i<14;i++) dust(tv.set(D.x+rand(-8,8),0,D.z+rand(-7,7)).clone(),4,1.6);
     banner(`${D.name} ONLINE`,id==='oil'?`$${D.rate[1]}/s during waves + a $${fmt(D.ship[1])} shipment after each. Expect raids.`:`Turrets +${Math.round(D.dmg[1]*100)}% damage, lasers fire ${D.laser[1]} s. Expect raids.`,D.col);
     sfx('horn'); refreshMC(); return true; }
-  if(o.dead){ o.dead=false; o.hp=o.max; setObjLook(id,true); popup3(tv.set(OBJ_DEF[id].term.x,2.4,OBJ_DEF[id].term.z),`${OBJ_DEF[id].name} REBUILT`,'#6fd39a'); }
+  if(o.dead){ o.dead=false; o.rebuilds=(o.rebuilds||0)+1; o.hp=o.max; setObjLook(id,true); popup3(tv.set(OBJ_DEF[id].term.x,2.4,OBJ_DEF[id].term.z),`${OBJ_DEF[id].name} REBUILT`,'#6fd39a'); }
   else { o.lvl++; o.max=objMax(id,o.lvl); o.hp=o.max; popup3(tv.set(OBJ_DEF[id].term.x,2.4,OBJ_DEF[id].term.z),`${OBJ_DEF[id].name} LEVEL ${o.lvl}`,'#ffd27a'); }
   sfx('build'); refreshMC(); return true; }
 function updateObjectives(dt){
