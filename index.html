@@ -1563,13 +1563,126 @@ const PANEL_TEX=canvasTex(256,256,(x,w,h)=>{ x.fillStyle='#ffffff'; x.fillRect(0
 const ROTOR_TEX=(()=>{ const c=document.createElement('canvas'); c.width=c.height=128; const x=c.getContext('2d'); const g=x.createRadialGradient(64,64,6,64,64,64);
   g.addColorStop(0,'rgba(20,20,20,0.35)'); g.addColorStop(0.85,'rgba(20,20,20,0.16)'); g.addColorStop(1,'rgba(20,20,20,0)'); x.fillStyle=g; x.fillRect(0,0,128,128);
   x.strokeStyle='rgba(0,0,0,0.12)'; x.lineWidth=2; for(let i=0;i<4;i++){ x.beginPath(); x.arc(64,64,20+i*11,0,7); x.stroke(); } return new THREE.CanvasTexture(c); })(); // motion-blur disc with faint tip rings
+// ---- liveries ----
+// Each aircraft type is painted three times (top, belly, left side) in units of its size r, and the shader projects that onto
+// every part from where the part sits in the aircraft, so wings and fins (which have no texture coordinates) get camo, a pale
+// belly, insignia and markings too. As hp drops, soot spreads over the skin, with a glowing edge once it's badly hurt.
+const SKIN_FRAG=`float skEmber=0.0;
+{ vec3 n=normalize(vSN)*(gl_FrontFacing?1.0:-1.0);
+  vec2 pl=clamp(vec2(vSP.x,-vSP.z)/4.4+0.5,0.003,0.997), sd=clamp(vec2(-vSP.z/4.4,vSP.y/1.6)+0.5,0.003,0.997);
+  vec3 tp=texture2D(uSkin,vec2(pl.x/3.0,pl.y)).rgb, bl=texture2D(uSkin,vec2((pl.x+1.0)/3.0,pl.y)).rgb, sc=texture2D(uSkin,vec2((sd.x+2.0)/3.0,sd.y)).rgb;
+  float sw=pow(abs(n.x),3.0); sw/=sw+pow(abs(n.y),3.0)+pow(abs(n.z),3.0)+1e-5;
+  vec3 c=mix(mix(bl,tp,smoothstep(-0.3,0.3,n.y)),sc,sw);
+  float s=texture2D(uSoot,vSP.xz*0.55+vSP.y*0.3).r, b=smoothstep(s-0.06,s+0.06,uDmg*0.9);
+  c=mix(c,c*0.16+0.015,b*0.9); skEmber=b*(1.0-b)*2.0*smoothstep(0.45,0.8,uDmg);
+  diffuseColor.rgb*=c; }`;
+function skinMat(e,o){ const m=new THREE.MeshStandardMaterial(Object.assign({color:0xffffff,metalness:0.12,roughness:0.62,side:THREE.DoubleSide,emissive:0x000000,envMapIntensity:0.7},o)) /* matte paint, so the scheme's colours hold up in the sunset light */, u=e.skinU;
+  m.onBeforeCompile=sh=>{ sh.uniforms.uSkin=u.uSkin; sh.uniforms.uSoot=u.uSoot; sh.uniforms.uDmg=u.uDmg;
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nattribute vec3 skinP; attribute vec3 skinN; varying vec3 vSP; varying vec3 vSN;').replace('#include <begin_vertex>','#include <begin_vertex>\nvSP=skinP; vSN=skinN;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nuniform sampler2D uSkin; uniform sampler2D uSoot; uniform float uDmg; varying vec3 vSP; varying vec3 vSN;')
+      .replace('#include <map_fragment>',SKIN_FRAG).replace('#include <emissivemap_fragment>','#include <emissivemap_fragment>\ntotalEmissiveRadiance+=vec3(1.0,0.38,0.08)*skEmber;'); };
+  return m; }
+// each skinned part gets its position and normal in the aircraft's frame (in units of r) as attributes, baked once at build time
+function bakeSkin(g,skin,r){ g.updateMatrixWorld(true); const inv=g.matrixWorld.clone().invert(), M=new THREE.Matrix4(), N=new THREE.Matrix3(), done=new Set(), v=new THREE.Vector3();
+  g.traverse(o=>{ if(!o.isMesh||o.material!==skin) return; if(o.geometry===SPH||done.has(o.geometry)) o.geometry=o.geometry.clone(); done.add(o.geometry);
+    M.multiplyMatrices(inv,o.matrixWorld); N.getNormalMatrix(M); const p=o.geometry.attributes.position, nn=o.geometry.attributes.normal, P=new Float32Array(p.count*3), Q=new Float32Array(p.count*3);
+    for(let i=0;i<p.count;i++){ v.fromBufferAttribute(p,i).applyMatrix4(M).multiplyScalar(1/r); P[i*3]=v.x; P[i*3+1]=v.y; P[i*3+2]=v.z; v.fromBufferAttribute(nn,i).applyMatrix3(N).normalize(); Q[i*3]=v.x; Q[i*3+1]=v.y; Q[i*3+2]=v.z; }
+    o.geometry.setAttribute('skinP',new THREE.BufferAttribute(P,3)); o.geometry.setAttribute('skinN',new THREE.BufferAttribute(Q,3)); }); }
+// soot blotches: where the damage spreads first
+const SOOT_TEX=canvasTex(256,256,(x,w,h)=>{ x.fillStyle='#808080'; x.fillRect(0,0,w,h);
+  for(let i=0;i<220;i++){ const cx=rand(0,w), cy=rand(0,h), rr=rand(8,46), v=rand(0,1)<0.5?0:255, g=x.createRadialGradient(cx,cy,0,cx,cy,rr); g.addColorStop(0,`rgba(${v},${v},${v},0.35)`); g.addColorStop(1,`rgba(${v},${v},${v},0)`);
+    for(const [dx,dy] of [[0,0],[-w,0],[w,0],[0,-h],[0,h]]){ x.fillStyle=g; x.save(); x.translate(dx,dy); x.fillRect(cx-rr,cy-rr,rr*2,rr*2); x.restore(); } } }); // drawn wrapped so it tiles
+const seeded=s=>()=>(s=(s*16807)%2147483647)/2147483647; // the same paint on every aircraft of a type
+// canvas: [top | belly | side], each S square. Top and belly are drawn in plan (x, z), nose down the canvas; the side in (z, y), nose left.
+function paintLivery(S,seed,fn){ const c=document.createElement('canvas'); c.width=S*3; c.height=S; const x=c.getContext('2d'), R=seeded(seed), k=S/4.4;
+  const reg=(i,side,draw)=>{ x.save(); x.beginPath(); x.rect(i*S,0,S,S); x.clip(); if(side) x.setTransform(-k,0,0,-S/1.6,i*S+S/2,S/2); else x.setTransform(k,0,0,k,i*S+S/2,S/2); draw(); x.restore(); };
+  const L={x,R,
+    top:d=>reg(0,0,d), belly:d=>reg(1,0,d), side:d=>reg(2,1,d),
+    fill:col=>{ x.fillStyle=col; x.fillRect(-3,-3,6,6); },
+    // organic blotches; sideways stretch along the airframe
+    blotch:(cols,n,sz)=>{ for(const col of cols){ x.fillStyle=col; for(let i=0;i<n;i++){ const cx=R()*4.4-2.2, cy=R()*4.4-2.2; for(let j=0;j<4;j++){ x.beginPath(); x.ellipse(cx+(R()-0.5)*sz*1.4,cy+(R()-0.5)*sz*2,sz*(0.4+R()*0.6),sz*(0.6+R()*0.9),0,0,7); x.fill(); } } } },
+    // angular splinter camo
+    splinter:(cols,n,sz)=>{ for(const col of cols){ x.fillStyle=col; for(let i=0;i<n;i++){ const cx=R()*4.4-2.2, cy=R()*4.4-2.2; x.beginPath(); for(let j=0;j<4;j++){ const a=j*1.57+R()*1.2; x.lineTo(cx+Math.cos(a)*sz*(0.5+R()), cy+Math.sin(a)*sz*(0.5+R()*1.5)); } x.fill(); } } },
+    // tiger stripes across the airframe
+    stripes:(col,n,wd)=>{ x.fillStyle=col; for(let i=0;i<n;i++){ const z=R()*4.4-2.2, ph=R()*6; x.beginPath(); for(let s=-2.2;s<=2.2;s+=0.1) x.lineTo(s,z+Math.sin(s*3+ph)*0.08); for(let s=2.2;s>=-2.2;s-=0.1) x.lineTo(s,z+Math.sin(s*3+ph)*0.08+wd*(0.3+0.7*Math.abs(Math.sin(s*1.7+ph)))); x.fill(); } },
+    panels:(col,dz)=>{ x.strokeStyle=col; x.lineWidth=0.012; for(let z=-2.2;z<2.2;z+=dz){ x.beginPath(); x.moveTo(-2.2,z); x.lineTo(2.2,z); x.stroke(); }
+      for(let i=0;i<30;i++){ const px=R()*4.4-2.2, pz=R()*4.4-2.2; x.beginPath(); x.moveTo(px,pz); x.lineTo(px,pz+dz*(1+R()*2)); x.stroke(); } },
+    // weathering: thin streaks running aft
+    streaks:(col,n)=>{ for(let i=0;i<n;i++){ const px=R()*4.4-2.2, pz=R()*4.4-2.2, l=0.2+R()*0.8, g=x.createLinearGradient(0,pz,0,pz-l); g.addColorStop(0,col); g.addColorStop(1,'rgba(0,0,0,0)'); x.fillStyle=g; x.fillRect(px,pz-l,0.015+R()*0.04,l); } },
+    // belly shading on the side view: camo above, belly colour below
+    underside:(col,y0)=>{ const g=x.createLinearGradient(0,y0+0.06,0,y0-0.14); g.addColorStop(0,'rgba(0,0,0,0)'); g.addColorStop(1,col); x.fillStyle=g; x.fillRect(-3,y0+0.06,6,-3); },
+    // the enemy roundel: black ring, red disc, white chevron pointing at the nose (dx,dy = nose direction in this view)
+    roundel:(cx,cy,rad,dx,dy,lowvis)=>{ x.save(); x.translate(cx,cy); x.rotate(Math.atan2(dy,dx)-Math.PI/2);
+      x.fillStyle=lowvis?'#14171b':'#111'; x.beginPath(); x.arc(0,0,rad,0,7); x.fill(); x.fillStyle=lowvis?'#2b2f35':'#a31d1d'; x.beginPath(); x.arc(0,0,rad*0.8,0,7); x.fill();
+      x.fillStyle=lowvis?'#3a3f46':'#f2efe6'; x.beginPath(); x.moveTo(0,rad*0.62); x.lineTo(rad*0.55,-rad*0.3); x.lineTo(rad*0.28,-rad*0.3); x.lineTo(0,rad*0.18); x.lineTo(-rad*0.28,-rad*0.3); x.lineTo(-rad*0.55,-rad*0.3); x.closePath(); x.fill(); x.restore(); },
+    // belly text: turned 180° so it reads right from below with the nose ahead
+    text:(s,cx,cy,h,col)=>{ x.save(); x.translate(cx,cy); x.rotate(Math.PI); x.scale(h/100,h/100); x.font='900 100px "Arial Black", Impact, sans-serif'; x.textAlign='center'; x.textBaseline='middle'; x.fillStyle=col; x.fillText(s,0,0); x.restore(); },
+    // diagonal hazard stripes in a box
+    hazard:(x0,y0,w,h,c1,c2)=>{ x.save(); x.beginPath(); x.rect(x0,y0,w,h); x.clip(); x.fillStyle=c1; x.fillRect(x0,y0,w,h); x.fillStyle=c2; const st=Math.max(Math.abs(w),Math.abs(h))/6;
+      for(let i=-12;i<12;i++){ const s=x0+i*st*2; x.beginPath(); x.moveTo(s,y0); x.lineTo(s+st,y0); x.lineTo(s+st+h,y0+h); x.lineTo(s+h,y0+h); x.fill(); } x.restore(); },
+    // a shark mouth on the nose (side view, z from tail to tip, y from chin to lip)
+    shark:(z0,z1,y0,y1)=>{ const zm=z0+(z1-z0)*0.35; x.fillStyle='#3a0b0b'; x.beginPath(); x.moveTo(z1,(y0+y1)/2); x.quadraticCurveTo(zm,y1,z0,y1+(y1-y0)*0.15); x.quadraticCurveTo(zm,y0-(y1-y0)*0.2,z1,(y0+y1)/2-(y1-y0)*0.12); x.fill();
+      x.fillStyle='#f4f1ea'; const nt=7; for(let i=0;i<nt;i++){ const t=i/nt, z=z1-(z1-z0)*0.9*t, yt=y1-(y1-y0)*0.06-(y1-y0)*0.25*(1-t)*(1-t), tw=(z1-z0)*0.06; x.beginPath(); x.moveTo(z-tw,yt); x.lineTo(z+tw,yt); x.lineTo(z,yt-(y1-y0)*0.32); x.fill(); }
+      x.fillStyle='#f4f1ea'; x.beginPath(); x.arc(z0+(z1-z0)*0.2,y1+(y1-y0)*0.45,(y1-y0)*0.16,0,7); x.fill(); x.fillStyle='#111'; x.beginPath(); x.arc(z0+(z1-z0)*0.22,y1+(y1-y0)*0.45,(y1-y0)*0.08,0,7); x.fill(); } };
+  fn(L); const t=new THREE.CanvasTexture(c); t.anisotropy=4; return t; }
+// the paint scheme for each type; coordinates are in units of r (see buildEnemy for where wings, fins and noses sit)
+const LIVERIES={
+  scout:L=>{ L.top(()=>{ L.fill('#5d6a44'); L.blotch(['#3c472b','#857550'],14,0.18); L.panels('rgba(20,24,14,0.35)',0.22); L.streaks('rgba(30,26,20,0.35)',30); L.roundel(0,0.15,0.2,0,1); });
+    L.side(()=>{ L.fill('#5d6a44'); L.blotch(['#3c472b','#857550'],14,0.16); L.underside('#6f7a58',-0.12); L.panels('rgba(20,24,14,0.35)',0.2); L.roundel(0.05,0.04,0.15,1,0); L.x.fillStyle='#e8e2c8'; L.x.fillRect(-1.48,-0.2,0.07,0.4); L.x.fillRect(-1.36,-0.2,0.07,0.4); });
+    L.belly(()=>{ L.fill('#6f7a58'); L.panels('rgba(40,44,34,0.3)',0.22); L.roundel(0,0.1,0.22,0,1); }); },
+  attack:L=>{ L.top(()=>{ L.fill('#4a565e'); L.splinter(['#36404a','#5f6b70'],26,0.22); L.panels('rgba(10,14,18,0.4)',0.2); L.streaks('rgba(20,20,20,0.35)',34); for(const s of [-0.5,0.5]) L.roundel(s,0,0.11,0,1); });
+    L.side(()=>{ L.fill('#4a565e'); L.splinter(['#36404a','#5f6b70'],26,0.2); L.underside('#5f6b74',-0.1); L.panels('rgba(10,14,18,0.4)',0.18); L.shark(0.36,0.8,-0.27,-0.05); L.roundel(-0.2,0.06,0.13,1,0); L.x.fillStyle='#c8a21e'; L.x.fillRect(-1.6,-0.2,0.08,0.4); });
+    L.belly(()=>{ L.fill('#5f6b74'); L.panels('rgba(30,36,40,0.3)',0.2); for(const s of [-0.5,0.5]) L.roundel(s,0,0.11,0,1); L.text('312',0,-0.4,0.18,'#2a2f33'); }); },
+  jet:L=>{ L.top(()=>{ L.fill('#7d8692'); L.splinter(['#646d78','#8e98a3'],30,0.3); L.panels('rgba(30,34,40,0.45)',0.18); L.streaks('rgba(30,30,30,0.3)',40); for(const s of [-0.62,0.62]) L.roundel(s,-0.34,0.15,0,1);
+      const g=L.x.createLinearGradient(0,-0.8,0,-1.2); g.addColorStop(0,'rgba(20,18,16,0)'); g.addColorStop(1,'rgba(20,18,16,0.7)'); L.x.fillStyle=g; L.x.fillRect(-0.25,-1.2,0.5,0.4); });
+    L.side(()=>{ L.fill('#7d8692'); L.splinter(['#646d78','#8e98a3'],30,0.26); L.underside('#b9c0c7',-0.06); L.panels('rgba(30,34,40,0.45)',0.16);
+      L.x.fillStyle='#9e1e1e'; L.x.beginPath(); L.x.moveTo(-0.62,0.48); L.x.lineTo(-0.96,0.62); L.x.lineTo(-1.06,0.62); L.x.lineTo(-0.72,0.48); L.x.fill(); L.roundel(-0.72,0.3,0.08,1,0);
+      L.x.fillStyle='#1d2024'; L.x.fillRect(0.75,-0.04,0.18,0.08); /* intake */ const g=L.x.createLinearGradient(-0.8,0,-1.1,0); g.addColorStop(0,'rgba(20,18,16,0)'); g.addColorStop(1,'rgba(20,18,16,0.75)'); L.x.fillStyle=g; L.x.fillRect(-1.1,-0.2,0.3,0.4); });
+    L.belly(()=>{ L.fill('#b9c0c7'); L.panels('rgba(50,56,62,0.35)',0.18); for(const s of [-0.62,0.62]) L.roundel(s,-0.34,0.15,0,1); L.text('07',0,-0.62,0.2,'#3a4048'); }); },
+  bomber:L=>{ L.top(()=>{ L.fill('#46503a'); L.blotch(['#2f3828','#6a5b40','#3d4852'],18,0.26); L.panels('rgba(16,18,14,0.45)',0.16); L.streaks('rgba(20,18,14,0.4)',60); for(const s of [-0.72,0.72]) L.roundel(s,-0.22,0.15,0,1); });
+    L.side(()=>{ L.fill('#46503a'); L.blotch(['#2f3828','#6a5b40','#3d4852'],18,0.22); L.underside('#2b3036',-0.05); L.panels('rgba(16,18,14,0.45)',0.14); L.roundel(0.3,0,0.1,1,0); L.roundel(-0.98,0.32,0.1,1,0);
+      L.x.fillStyle='#c8a21e'; L.x.fillRect(-0.62,-0.12,0.04,0.24); });
+    L.belly(()=>{ L.fill('#2b3036'); L.panels('rgba(120,126,132,0.22)',0.16); L.streaks('rgba(10,10,10,0.5)',40); for(const s of [-0.72,0.72]) L.roundel(s,-0.22,0.15,0,1); for(const s of [-1.2,1.2]) L.text(s<0?'41':'7',s,-0.42,0.16,'#d9d4c8'); }); },
+  empbomber:L=>{ const bolt=(cx,cy,h)=>{ L.x.fillStyle='#7cf0ff'; L.x.beginPath(); L.x.moveTo(cx+h*0.1,cy+h*0.5); L.x.lineTo(cx-h*0.25,cy-h*0.05); L.x.lineTo(cx,cy-h*0.05); L.x.lineTo(cx-h*0.1,cy-h*0.5); L.x.lineTo(cx+h*0.25,cy+h*0.05); L.x.lineTo(cx,cy+h*0.05); L.x.fill(); };
+    L.top(()=>{ L.fill('#2f4a5c'); L.splinter(['#243a4a','#3f5d70'],26,0.3); L.panels('rgba(10,16,22,0.45)',0.16); L.streaks('rgba(10,14,18,0.4)',50); for(const s of [-0.72,0.72]) L.roundel(s,-0.22,0.15,0,1); L.hazard(-0.14,0.05,0.28,0.2,'#d8b02a','#151515'); for(const s of [-1.15,1.15]) bolt(s,-0.42,0.22); });
+    L.side(()=>{ L.fill('#2f4a5c'); L.splinter(['#243a4a','#3f5d70'],26,0.26); L.underside('#1d2a33',-0.05); L.panels('rgba(10,16,22,0.45)',0.14); L.hazard(0.0,-0.14,0.2,0.28,'#d8b02a','#151515'); bolt(-0.98,0.3,0.28); L.roundel(0.4,0,0.1,1,0); });
+    L.belly(()=>{ L.fill('#1d2a33'); L.panels('rgba(120,170,200,0.2)',0.16); L.hazard(-0.14,-0.05,0.28,0.3,'#d8b02a','#151515'); for(const s of [-0.72,0.72]) L.roundel(s,-0.22,0.15,0,1); for(const s of [-1.15,1.15]) bolt(s,-0.42,0.22); }); },
+  // radar-absorbent coating: near-black facets edged with sawtooth seams, and only a low-visibility roundel
+  stealth:L=>{ const ram=()=>{ L.fill('#22262c'); L.splinter(['#1c1f24','#272b31'],40,0.35); L.x.strokeStyle='rgba(70,76,86,0.55)'; L.x.lineWidth=0.012;
+      for(let i=0;i<8;i++){ const z=L.R()*4-2; L.x.beginPath(); for(let s=-2.2,j=0;s<=2.2;s+=0.06,j++) L.x.lineTo(s,z+(j%2?0.035:-0.035)+s*0.5); L.x.stroke(); } L.streaks('rgba(0,0,0,0.35)',30); };
+    L.top(()=>{ ram(); for(const s of [-0.55,0.55]) L.roundel(s,-0.3,0.13,0,1,true); }); L.side(()=>{ ram(); L.roundel(-0.6,0.2,0.08,1,0,true); }); L.belly(()=>{ ram(); for(const s of [-0.55,0.55]) L.roundel(s,-0.3,0.13,0,1,true); }); },
+  wraith:L=>{ const ram=()=>{ L.fill('#1b1e23'); L.splinter(['#16181c','#22262b'],50,0.3); L.x.strokeStyle='rgba(64,70,80,0.5)'; L.x.lineWidth=0.008;
+      for(let i=0;i<10;i++){ const z=L.R()*4-2; L.x.beginPath(); for(let s=-2.2,j=0;s<=2.2;s+=0.045,j++) L.x.lineTo(s,z+(j%2?0.025:-0.025)-Math.abs(s)*0.45); L.x.stroke(); } L.streaks('rgba(0,0,0,0.4)',40); };
+    L.top(()=>{ ram(); for(const s of [-0.7,0.7]) L.roundel(s,-0.35,0.12,0,1,true); }); L.side(()=>ram());
+    L.belly(()=>{ ram(); for(const s of [-0.7,0.7]) L.roundel(s,-0.35,0.12,0,1,true); L.x.fillStyle='rgba(150,30,30,0.5)'; L.x.fillRect(-0.08,-0.4,0.16,0.04); }); },
+  gunship:L=>{ L.top(()=>{ L.fill('#3a453c'); L.stripes('#1a201b',16,0.12); L.panels('rgba(10,12,10,0.45)',0.15); L.streaks('rgba(10,10,8,0.45)',50); L.roundel(0,0,0.18,0,1); });
+    L.side(()=>{ L.fill('#3a453c'); L.stripes('#1a201b',16,0.1); L.underside('#6c7568',-0.18); L.panels('rgba(10,12,10,0.45)',0.13); L.shark(0.7,1.24,-0.28,-0.04); L.roundel(0.05,0.05,0.14,1,0); L.x.fillStyle='#8e1a1a'; L.x.fillRect(-1.0,-0.25,0.12,0.6); });
+    L.belly(()=>{ L.fill('#6c7568'); L.panels('rgba(20,24,20,0.35)',0.15); L.roundel(0,0.1,0.22,0,1); L.text('LEVIATHAN',0,-0.5,0.11,'#20251f'); }); },
+  carrier:L=>{ L.top(()=>{ L.fill('#3b4048'); L.splinter(['#33383f','#444a52'],40,0.25); L.panels('rgba(14,16,20,0.5)',0.12); L.streaks('rgba(60,40,24,0.35)',60); L.streaks('rgba(10,10,10,0.45)',60); });
+    L.side(()=>{ L.fill('#3b4048'); L.splinter(['#33383f','#444a52'],40,0.2); L.underside('#5b636c',-0.1); L.panels('rgba(14,16,20,0.5)',0.1); L.streaks('rgba(60,40,24,0.4)',50); L.roundel(0.3,0,0.11,1,0); L.hazard(-0.9,-0.16,0.5,0.06,'#d8b02a','#151515'); });
+    L.belly(()=>{ L.fill('#5b636c'); L.panels('rgba(20,24,28,0.45)',0.12); for(const [px,pz] of [[-0.62,0.62],[0.62,0.62],[-0.62,-0.62],[0.62,-0.62]]){ L.x.strokeStyle='#d8b02a'; L.x.lineWidth=0.03; L.x.beginPath(); L.x.arc(px*1.6,pz,0.28,0,7); L.x.stroke(); }
+      L.roundel(0,0,0.3,0,1); L.text('HYDRA',0,-0.75,0.14,'#20242a'); }); },
+  drone:L=>{ L.top(()=>{ L.fill('#2c3136'); L.splinter(['#24282c','#353a40'],20,0.2); L.x.fillStyle='#e0702a'; L.x.beginPath(); L.x.moveTo(0,0.3); L.x.lineTo(0.18,0.12); L.x.lineTo(0,0.2); L.x.lineTo(-0.18,0.12); L.x.fill(); });
+    L.side(()=>{ L.fill('#2c3136'); L.x.fillStyle='#e0702a'; L.x.fillRect(0.12,-0.04,0.12,0.08); }); L.belly(()=>{ L.fill('#3a3f45'); L.roundel(0,0,0.18,0,1); }); },
+  cruise:L=>{ const bands=()=>{ L.x.fillStyle='#a31d1d'; L.x.fillRect(-3,0.55,6,0.1); L.x.fillStyle='#d8b02a'; L.x.fillRect(-3,0.72,6,0.06); L.x.fillStyle='#2a2d31'; L.x.fillRect(-3,-0.95,6,0.04); };
+    L.top(()=>{ L.fill('#c9ccd0'); L.panels('rgba(60,64,70,0.4)',0.25); bands(); L.streaks('rgba(40,40,40,0.25)',20); });
+    L.side(()=>{ L.fill('#c9ccd0'); L.panels('rgba(60,64,70,0.4)',0.22); L.x.fillStyle='#a31d1d'; L.x.fillRect(0.55,-1,0.1,2); L.x.fillStyle='#d8b02a'; L.x.fillRect(0.72,-1,0.06,2); L.x.fillStyle='#2a2d31'; for(let i=0;i<5;i++) L.x.fillRect(-0.2+i*0.07,0.05,0.04,0.03); });
+    L.belly(()=>{ L.fill('#b5b9be'); L.panels('rgba(60,64,70,0.4)',0.25); bands(); }); },
+  awacs:L=>{ L.top(()=>{ L.fill('#9aa3ab'); L.x.fillStyle='#7d868e'; L.x.fillRect(-0.12,-2.2,0.24,4.4); L.panels('rgba(40,46,52,0.4)',0.16); L.streaks('rgba(40,40,40,0.25)',40); for(const s of [-1.05,1.05]) L.roundel(s,-0.24,0.08,0,1); });
+    L.side(()=>{ L.fill('#9aa3ab'); L.underside('#c9cdd1',-0.03); L.x.fillStyle='#2a3a55'; L.x.fillRect(-1.1,0.0,2.3,0.035); L.panels('rgba(40,46,52,0.4)',0.14); L.x.fillStyle='#1d2228'; for(let i=0;i<14;i++) L.x.fillRect(0.95-i*0.11,0.05,0.035,0.025); L.roundel(-0.85,0.25,0.08,1,0); });
+    L.belly(()=>{ L.fill('#c9cdd1'); L.panels('rgba(60,66,72,0.3)',0.16); for(const s of [-1.05,1.05]) L.roundel(s,-0.24,0.08,0,1); L.text('R-90',0,0.5,0.16,'#4a525a'); }); },
+};
+const LIV_SEED={scout:11,attack:23,jet:37,bomber:41,empbomber:53,stealth:61,wraith:71,gunship:83,carrier:97,drone:101,cruise:113,awacs:127};
+const LIV_BIG={bomber:1,empbomber:1,wraith:1,gunship:1,carrier:1,awacs:1}, LIV_TEX={};
+const liveryTex=type=>LIV_TEX[type]||(LIV_TEX[type]=paintLivery(LIV_BIG[type]?512:256,LIV_SEED[type]||7,LIVERIES[type]||LIVERIES.jet));
 function buildEnemy(e){
   const T=e.T, r=T.r, g=new THREE.Group(), mats=[];
   // painted metal that picks up the dusk sky through scene.environment; smooth shading on curved parts, panel-line skin on top
   const em=hex=>{const m=new THREE.MeshStandardMaterial({color:hex,map:T.stealth?null:PANEL_TEX,flatShading:!!T.stealth,metalness:T.stealth?0.25:0.3,roughness:T.stealth?0.7:0.58,side:THREE.DoubleSide,emissive:0x000000,envMapIntensity:0.9}); if(T.stealth){m.transparent=true;} mats.push(m); return m;};
   const glass=()=>{const m=new THREE.MeshStandardMaterial({color:0x6f9fbf,metalness:0.2,roughness:0.06,emissive:0x000000,flatShading:true,envMapIntensity:1.4}); if(T.stealth)m.transparent=true; mats.push(m); return m;};
   const add=(geo,mat,x,y,z)=>{const m=mesh(geo,mat,x,y,z,false);m.castShadow=true;g.add(m);return m;};
-  const body=em(T.color), dark=em(0x23272a);
+  e.skinU={uSkin:{value:liveryTex(e.type)},uSoot:{value:SOOT_TEX},uDmg:{value:0}};
+  const body=skinMat(e,T.stealth?{flatShading:true,metalness:0.25,roughness:0.7,transparent:true}:{}), dark=em(0x23272a); mats.push(body); // body: the type's livery (wings and fins too)
   if(T.model==='carrier'){ // Hydra: armored hull with a flight deck, a bridge, four ducted lift fans and glowing exhausts
     add(box(r*0.75,r*0.32,r*2.1),body,0,0,0); const nose=add(SPH,body,0,-r*0.02,r*1.05); nose.scale.set(r*0.37,r*0.16,r*0.32);
     add(box(r*0.8,r*0.04,r*1.9),em(0x55606b),0,r*0.18,-r*0.05); for(let i=0;i<6;i++) add(box(r*0.03,r*0.045,r*0.18),em(0xd8b02a),0,r*0.2,-r*0.75+i*r*0.3);
@@ -1592,7 +1705,7 @@ function buildEnemy(e){
     e.burner.position.z=-r*0.95; g.add(e.burner);
   }else if(T.model==='awacs'){ // airliner body, straight wings, four engines and a rotating radar dome on struts
     add(cylZ(r*0.12,r*0.1,r*2.1,10),body,0,0,0); const n=add(SPH,body,0,0,r*1.05); n.scale.set(r*0.12,r*0.11,r*0.2);
-    add(flat([[0,r*0.25],[r*1.3,-r*0.25],[r*1.3,-r*0.38],[0,-r*0.15],[-r*1.3,-r*0.38],[-r*1.3,-r*0.25]]),em(0x7d868e),0,0,0);
+    add(flat([[0,r*0.25],[r*1.3,-r*0.25],[r*1.3,-r*0.38],[0,-r*0.15],[-r*1.3,-r*0.38],[-r*1.3,-r*0.25]]),body,0,0,0);
     for(const x of [-0.8,-0.45,0.45,0.8]) add(cylZ(r*0.05,r*0.05,r*0.3,8),dark,x*r,-r*0.07,r*0.1-Math.abs(x)*r*0.25);
     add(vflat([[0,-r*0.8],[r*0.45,-r*1.1],[r*0.45,-r*0.98],[0,-r*0.55]]),body,0,0,0);
     for(const z of [-0.15,0.25]) add(box(r*0.03,r*0.22,r*0.05),dark,0,r*0.2,z*r);
@@ -1630,7 +1743,7 @@ function buildEnemy(e){
       const c=add(SPH,glass(),0,r*0.12,r*0.45); c.scale.set(r*0.14,r*0.08,r*0.3); c.material.color.setHex(0xb09040);
     }else{
       add(cylZ(r*0.17,r*0.13,r*2.1,8),body,0,0,0); const n=add(new THREE.ConeGeometry(r*0.17,r*0.7,8).rotateX(Math.PI/2),body,0,0,r*1.4);
-      add(flat([[0,r*0.55],[r*1.15,-r*0.55],[r*1.0,-r*0.72],[0,-r*0.5],[-r*1.0,-r*0.72],[-r*1.15,-r*0.55]]),em(0x646d78),0,-r*0.02,0);
+      add(flat([[0,r*0.55],[r*1.15,-r*0.55],[r*1.0,-r*0.72],[0,-r*0.5],[-r*1.0,-r*0.72],[-r*1.15,-r*0.55]]),body,0,-r*0.02,0);
       add(flat([[0,-r*0.7],[r*0.5,-r*1.05],[0,-r*1.0],[-r*0.5,-r*1.05]]),body,0,0,0);
       for(const x of [-0.15,0.15]){const f=add(vflat([[0,-r*0.55],[r*0.65,-r*1.05],[r*0.65,-r*0.85],[0,-r*0.2]]),body,x*r,r*0.1,0); f.rotation.z=x>0?-0.25:0.25;}
       const c=add(SPH,glass(),0,r*0.16,r*0.75); c.scale.set(r*0.13,r*0.12,r*0.38);
@@ -1640,7 +1753,7 @@ function buildEnemy(e){
   }else{ // bomber
     add(cylZ(r*0.13,r*0.1,r*2.3,10),body,0,0,0); const n=add(SPH,body,0,0,r*1.15); n.scale.set(r*0.13,r*0.12,r*0.25);
     const c=add(SPH,glass(),0,r*0.06,r*1.2); c.scale.set(r*0.08,r*0.06,r*0.12);
-    add(flat([[0,r*0.35],[r*1.45,-r*0.45],[r*1.45,-r*0.6],[0,-r*0.2],[-r*1.45,-r*0.6],[-r*1.45,-r*0.45]]),em(0x333d46),0,0,0);
+    add(flat([[0,r*0.35],[r*1.45,-r*0.45],[r*1.45,-r*0.6],[0,-r*0.2],[-r*1.45,-r*0.6],[-r*1.45,-r*0.45]]),body,0,0,0);
     for(const x of [-0.95,-0.5,0.5,0.95]) add(cylZ(r*0.06,r*0.06,r*0.4,8),dark,x*r,-r*0.08,r*0.05-Math.abs(x)*r*0.5);
     add(vflat([[0,-r*0.85],[r*0.6,-r*1.25],[r*0.6,-r*1.1],[0,-r*0.55]]),body,0,0,0);
     add(flat([[0,-r*0.85],[r*0.45,-r*1.15],[r*0.45,-r*1.2],[0,-r*1.05],[-r*0.45,-r*1.2],[-r*0.45,-r*1.15]]),body,0,r*0.05,0);
@@ -1658,6 +1771,7 @@ function buildEnemy(e){
   e.weak=[]; e.weakGlows=[];
   for(const [x,y,z,wr,rear] of weakPointsOf(T)){ const p=new THREE.Vector3(x*r,y*r,z*r); e.weak.push({p,r:Math.max(0.9,wr*r),rear:!!rear});
     const glow=new THREE.Mesh(WEAK_GEO,WEAK_MAT); glow.position.copy(p); glow.scale.setScalar(Math.max(0.6,wr*r*0.55)); glow.visible=!T.stealth; g.add(glow); e.weakGlows.push(glow); }
+  bakeSkin(g,body,r);
   e.mats=mats; e.mesh=g; scene.add(g); navLights(e);
 }
 // [x, y, z, hit radius] in units of the model's size r; +z is the nose. Drones and cruise missiles are too small to need any.
@@ -2232,6 +2346,7 @@ function updateEnemies(dt){
     if(e.hp<e.maxhp*0.25 && Math.random()<0.5) part({t:'fire',x:e.pos.x,y:e.pos.y,z:e.pos.z,vx:rand(-2,2),vy:2,vz:rand(-2,2),life:0.3,size:2});
     // sync mesh
     e.mesh.position.copy(e.pos); e.mesh.rotation.set(e.pitch,e.yaw,e.bank,'YXZ');
+    if(e.skinU) e.skinU.uDmg.value=Math.max(0,1-e.hp/e.maxhp); // soot spreads as it takes damage
     const fl=e.flash>0?1:0; if(fl!==e.lastFlash){ e.lastFlash=fl; for(const m of e.mats) m.emissive.setScalar(fl?0.8:0); }
     if(T.stealth){ const op=e.reveal>0?1:(T.ghost||0.12)+0.05*Math.sin(e.t*6); for(const m of e.mats) m.opacity=op; for(const gl of e.weakGlows) gl.visible=e.reveal>0; } // weak points show only while exposed
     if(e.nav) for(const n of e.nav) if(n.userData.blink) n.visible=((e.t*n.userData.blink+e.id*0.37)%1)<0.12;
@@ -2274,7 +2389,7 @@ function killEnemy(e,owner,wn,type){
   G.cash+=T.reward; G.score+=T.reward; G.kills++;
   boom(e.pos,T.boss?3.2:T.kind==='bomber'?2.4:1.6);
   if(e.weakGlows) for(const gl of e.weakGlows) gl.visible=false; // a wreck has no weak points
-  for(const m of e.mats){ m.color.setHex(0x1a1918); m.emissive.setScalar(0); m.opacity=1; m.transparent=false; m.metalness=0.1; m.roughness=0.95; }
+  if(e.skinU) e.skinU.uDmg.value=1; for(const m of e.mats){ m.color.setHex(0x1a1918); m.emissive.setScalar(0); m.opacity=1; m.transparent=false; m.metalness=0.1; m.roughness=0.95; }
   if(e.burner) e.burner.visible=false; e.mesh.visible=true; if(e.nav){ for(const n of e.nav) n.visible=false; e.nav=null; }
   G.wrecks.push({mesh:e.mesh,pos:e.pos.clone(),vel:e.vel.clone().multiplyScalar(T.kind==='heli'?0.5:0.7).add(tv.set(0,3,0)),spin:V().set(rand(-0.8,0.8),T.kind==='heli'?rand(2,4)*(Math.random()<0.5?-1:1):rand(-0.4,0.4),rand(-1.5,1.5)),T,rotors:e.rotors,landed:false,t:0});
   popup3(e.pos,`+$${T.reward}`,'#6fd39a');
