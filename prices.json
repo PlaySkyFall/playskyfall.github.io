@@ -51,6 +51,13 @@
     "solar3": 9000,
     "rebuild": 40
   },
+  "mk3": {
+    "law": 10000,
+    "mg": 10000,
+    "stinger": 12000,
+    "swarm": 13000,
+    "rail": 15000
+  },
   "support": {
     "barrage": 1500,
     "escort": 3000,
