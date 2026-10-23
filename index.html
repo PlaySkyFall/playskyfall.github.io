@@ -718,7 +718,7 @@ function th(x,z){ const d=Math.hypot(x,z), a=Math.atan2(z,x);
 // scattered rocks, scrub and dry grass (instanced; kept off the FOB footprint)
 { let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
   const outside=(x,z)=>x>-86&&x<86&&z>-80&&z<46; // rocks and big scrub stay outside the perimeter
-  const inBase=(x,z)=>x<-73||x>73||z<-67||z>33||Math.hypot(x,z-3)<9||(Math.abs(x)<11&&z>13)||(Math.abs(x)>14&&Math.abs(x)<28&&z>7&&z<19)||(x>14&&x<28&&z>19&&z<29)||(x>-28&&x<-14&&z>19&&z<29)||(x>31&&x<41&&z>8&&z<18)||(x>-41&&x<-31&&z>8&&z<18) // + the Pit, the Personnel Office, the Aid Station
+  const inBase=(x,z)=>x<-73||x>73||z<-67||z>33||Math.hypot(x,z-3)<9||(Math.abs(x)<11&&z>13)||(Math.abs(x)>14&&Math.abs(x)<28&&z>7&&z<19)||(x>14&&x<28&&z>19&&z<29)||(Math.abs(x)>28&&Math.abs(x)<70&&z>10&&z<35) // + the two tent compounds
     ||(x>-68&&x<-38&&z>-50&&z<-20)||(x>36&&x<68&&z>-52&&z<-26)||(Math.abs(x)<3.5&&z<-8); // structures, the oil rig, the solar farm, the main road
   const scatter=(geo,mat,n,rMin,rMax,sMin,sMax,squash,sink,shadow,tint,blocked)=>{
     const im=new THREE.InstancedMesh(geo,mat,n), o=new THREE.Object3D(), c=new THREE.Color(); let k=0;
@@ -884,7 +884,8 @@ let beacon;
   // the HQ: a walk-in concrete block (playtest #15). Outer walls x -8..8, z 16..28, 0.3 m thick; the doorway is on the
   // right side (x +8, z 17.6..20.4), facing Mission Control and the Barracks. The interior is fitted out further down.
   { const wm=M(0x5a5440); g.add(mesh(box(17.2,0.8,13.2),M(0x6c6650),0,5.3,22));
-    g.add(mesh(box(16,4.9,0.3),wm,0,2.45,16.15)); g.add(mesh(box(16,4.9,0.3),wm,0,2.45,27.85)); g.add(mesh(box(0.3,4.9,11.4),wm,-7.85,2.45,22));
+    g.add(mesh(box(3.5,4.9,0.3),wm,-6.25,2.45,16.15)); g.add(mesh(box(3.5,4.9,0.3),wm,6.25,2.45,16.15)); g.add(mesh(box(9,1.7,0.3),wm,0,4.05,16.15)); // the front: a 9 m open bay (playtest: "more open")
+    g.add(mesh(box(16,4.9,0.3),wm,0,2.45,27.85)); g.add(mesh(box(0.3,4.9,11.4),wm,-7.85,2.45,22));
     g.add(mesh(box(0.3,4.9,1.3),wm,7.85,2.45,16.95)); g.add(mesh(box(0.3,4.9,7.3),wm,7.85,2.45,24.05)); g.add(mesh(box(0.3,1.9,2.8),wm,7.85,3.95,19));
     const fr=M(0x2e2b20); for(const z of [17.55,20.45]) g.add(mesh(box(0.42,3.0,0.12),fr,7.85,1.5,z)); g.add(mesh(box(0.42,0.14,3.02),fr,7.85,3.0,19));
     const leaf=mesh(box(2.7,2.9,0.08),M(0x3b4038),9.25,1.47,20.56); g.add(leaf); // the steel door, swung open against the wall
@@ -904,8 +905,12 @@ let beacon;
   // firing pit: 18 curved units on radius 7 around (0,3), 1.1 m of HESCO + a sandbag course = 1.4 m (you can still shoot over it)
   for(let i=0;i<18;i++){ const a=Math.PI*(0.08+0.84*(i+0.5)/18), x=Math.cos(a)*7, z=-Math.sin(a)*7+3, yaw=a+Math.PI/2;
     units.push([x,z,yaw,1.1,0,1.06]); bagsTop.push([x,z,yaw]); boxC(x,z,0.53,0.5,1.4,WALLM,{yaw,name:'pit HESCO'}); }
-  run(-9,15.2,9,15.2,1.1,2,'HQ HESCO wall');
   for(const [a,b] of [[-30,-12],[-8,8],[12,30]]) run(a,-28,b,-28,1.1,2,'outer HESCO wall');
+  // the two tent compounds, Off Duty (left) and Command (right): a waist-high HESCO wall, with a gate facing the HQ (z 22..28)
+  // and one facing the firing pit (|x| 36..42)
+  for(const s of [-1,1]){ const xi=29*s, xo=69*s;
+    run(xi,11,xi,22,1.1,1,'compound wall'); run(xi,28,xi,34,1.1,1,'compound wall'); run(xo,11,xo,34,1.1,1,'compound wall');
+    run(xi,11,36*s,11,1.1,1,'compound wall'); run(42*s,11,xo,11,1.1,1,'compound wall'); }
   // stacked perimeter: two tiers two units deep, a third tier on the inner row, brick-staggered (3.3 m, a stepped berm you can't see through)
   const PER={x0:-76,x1:76,z0:-70,z1:36};
   const stack=(x0,z0,x1,z1,name)=>{ const L=Math.hypot(x1-x0,z1-z0), n=Math.round(L), yaw=Math.atan2(x1-x0,z1-z0)+Math.PI/2, nx=Math.sin(yaw), nz=Math.cos(yaw), cx=(x0+x1)/2, cz=(z0+z1)/2;
@@ -935,7 +940,7 @@ let beacon;
   bagsTop.forEach(([x,z,yaw],i)=>{ for(let k=0;k<2;k++){ const off=k?-0.26:0.26; o.position.set(x+Math.cos(yaw)*off,1.24,z-Math.sin(yaw)*off); o.rotation.set(0,yaw+rand(-0.1,0.1),0); o.scale.set(0.27,0.15,0.44); o.updateMatrix(); bm.setMatrixAt(i*2+k,o.matrix); } });
   bm.castShadow=true; bm.receiveShadow=true; g.add(bm);
   { const HM=L_BODY|L_SHOT|L_SHIELD|L_WRECK, o={owner:'hq',name:'HQ'}; // walls and roof hit like the old solid block; the doorway is open
-    rectC([-8,8,16,16.3],4.9,HM,o); rectC([-8,8,27.7,28],4.9,HM,o); rectC([-8,-7.7,16.3,27.7],4.9,HM,o);
+    rectC([-8,-4.5,16,16.3],4.9,HM,o); rectC([4.5,8,16,16.3],4.9,HM,o); rectC([-4.5,4.5,16,16.3],4.9,HM,Object.assign({y0:3.2},o)); rectC([-8,8,27.7,28],4.9,HM,o); rectC([-8,-7.7,16.3,27.7],4.9,HM,o);
     rectC([7.7,8,16.3,17.6],4.9,HM,o); rectC([7.7,8,20.4,27.7],4.9,HM,o); rectC([7.7,8,17.6,20.4],4.9,HM,Object.assign({y0:3.0},o));
     rectC([-8.6,8.6,15.4,28.6],5.7,HM,Object.assign({y0:4.8},o)); rectC([7.95,10.6,20.5,20.62],2.9,L_BODY,{name:'HQ door'}); }
   // crates, barrels
@@ -948,7 +953,7 @@ let beacon;
   const cityM=new THREE.MeshLambertMaterial({map:facade,emissiveMap:glow,emissive:0xffffff,emissiveIntensity:0.9});
   for(let i=0;i<70;i++){const x=rand(-700,700),z=rand(-1150,-850),h=rand(15,80),w=rand(12,40); const b=mesh(box(w,h,rand(12,30)),cityM,x,th(x,z)+h/2-3,z,false); b.rotation.y=rand(-0.2,0.2); g.add(b);}
 }
-// Mess Tent: walk-in tent left of the HQ, entrance facing the base (+x)
+// Mess Tent: walk-in tent left of the HQ, entrance facing the base (+x); built here, then moved into the Off Duty compound (TENT_MOVES)
 // Canvas walls block bodies but not bullets (canvas doesn't stop rounds, and bulletproof tents would be a free safe room).
 for(const r of [[-26.2,-25.8,9,17],[-26,-16,8.85,9.15],[-26,-16,16.85,17.15],[-16.15,-15.85,9,11.4],[-16.15,-15.85,14.6,17]]) rectC(r,3.2,L_BODY,{name:'Mess Tent wall'});
 rectC([-26,-16,9,17],4.6,L_WRECK,{name:'Mess Tent roof'}); // wrecks land on the roof
@@ -968,7 +973,7 @@ const STATIONS=[
   {id:'radio',name:'RADIO',pos:new THREE.Vector3(-16.9,0.95,10.3)},
 ];
 let slotLamp, radioLed, viceSigns;
-{ const g=new THREE.Group(); scene.add(g);
+{ const g=new THREE.Group(); scene.add(g); g.userData.move='mess';
   const cv=M(0x5d5b3f,{side:THREE.DoubleSide}), cvD=M(0x4c4a33,{side:THREE.DoubleSide}), wood=M(0x6b5235), dk=M(0x2a2620);
   g.add(mesh(box(10,0.1,8),wood,-21,0.05,13));
   g.add(mesh(box(0.12,3.2,8),cv,-26,1.6,13)); g.add(mesh(box(10,3.2,0.12),cv,-21,1.6,9)); g.add(mesh(box(10,3.2,0.12),cv,-21,1.6,17));
@@ -997,7 +1002,7 @@ let slotLamp, radioLed, viceSigns;
   // sign over the entrance
   const s5=makeSign([{t:'MESS TENT',f:`76px ${STEN}`},{t:'UPGRADES · SMOKES · BEER',f:`700 28px ${COND}`}],512,200,'#1d1a14','#f3a81f',3,1.17); s5.position.set(-15.85,3.65,13); s5.rotation.y=Math.PI/2; g.add(s5);
 }
-// Mission Control: command tent right of the HQ, entrance facing the base (-x).
+// Mission Control: command tent right of the HQ, entrance facing the base (-x); built here, then moved into the Command compound (TENT_MOVES).
 // Weapon rack on the back wall, upgrade terminals on the left, personnel + HQ repair on the right, map table in the middle (the wave lever is in the HQ).
 for(const r of [[25.8,26.2,9,17],[16,26,8.85,9.15],[16,26,16.85,17.15],[15.85,16.15,9,11.4],[15.85,16.15,14.6,17]]) rectC(r,3.2,L_BODY,{name:'Mission Control wall'});
 rectC([16,26,9,17],4.6,L_WRECK,{name:'Mission Control roof'});
@@ -1022,7 +1027,7 @@ function fitText(c,text,cx,cy,maxW,size,weight,maxLines){
 }
 const RACK=[{y:2.25,z:10.4},{y:2.25,z:13},{y:2.25,z:15.6},{y:1.15,z:11.7},{y:1.15,z:14.3}], UPX=[17.4,19.2,21,22.8,24.6];
 const rackGuns={}; let lever, leverLamp, radarDish;
-{ const g=new THREE.Group(); scene.add(g);
+{ const g=new THREE.Group(); scene.add(g); g.userData.move='mc';
   const cv=M(0x4c5646,{side:THREE.DoubleSide}), cvD=M(0x3e4739,{side:THREE.DoubleSide}), dk=M(0x24272a), steel=M(0x5a6068), desk=M(0x4a4136);
   g.add(mesh(box(10,0.1,8),M(0x3b3a33),21,0.05,13));
   g.add(mesh(box(0.12,3.2,8),cv,26,1.6,13)); g.add(mesh(box(10,3.2,0.12),cv,21,1.6,9)); g.add(mesh(box(10,3.2,0.12),cv,21,1.6,17));
@@ -1133,7 +1138,7 @@ let hqBoard, hqWaveBoard;
 // canvas walls (block bodies, not bullets), a ridge roof, a 3.2 m doorway in the middle of one end, a sign over it.
 const TENT_ROOMS=[];
 function makeTent(o){ const {id,x0,x1,z0,z1,door,canvas,col,name,sub,lamp}=o, cx=(x0+x1)/2, cz=(z0+z1)/2, W=x1-x0, D=z1-z0, xd=door==='+x'?x1:x0, xb=door==='+x'?x0:x1;
-  const g=new THREE.Group(); scene.add(g); const cv=M(canvas,{side:THREE.DoubleSide}), cvD=M(new THREE.Color(canvas).multiplyScalar(0.82).getHex(),{side:THREE.DoubleSide}), dk=M(0x2a2620);
+  const g=new THREE.Group(); scene.add(g); g.userData.move=id; const cv=M(canvas,{side:THREE.DoubleSide}), cvD=M(new THREE.Color(canvas).multiplyScalar(0.82).getHex(),{side:THREE.DoubleSide}), dk=M(0x2a2620);
   g.add(mesh(box(W,0.1,D),M(o.floor||0x3b3a33),cx,0.05,cz));
   g.add(mesh(box(0.12,3.2,D),cv,xb,1.6,cz)); g.add(mesh(box(W,3.2,0.12),cv,cx,1.6,z0)); g.add(mesh(box(W,3.2,0.12),cv,cx,1.6,z1));
   const L=D/2-1.6; g.add(mesh(box(0.12,3.2,L),cv,xd,1.6,z0+L/2)); g.add(mesh(box(0.12,3.2,L),cv,xd,1.6,z1-L/2)); g.add(mesh(box(0.12,0.6,3.2),cv,xd,2.9,cz));
@@ -1205,12 +1210,12 @@ let potBoard, recordBoard;
   const tk=makeSign([{t:'TRAUMA KITS',f:`48px ${STEN}`},{t:'SQUAD +30% HEALTH · FOR GOOD',f:`700 24px ${COND}`}],384,150,'#1d1414','#6fd39a',1.5,0.58); tk.position.set(-33.6,2.1,16.86); tk.rotation.y=Math.PI; g.add(tk);
   STATIONS.push({id:'treat',name:'TREATMENT',pos:new THREE.Vector3(-36.4,1.3,12.9)},{id:'u:armor',name:'BODY ARMOR',pos:new THREE.Vector3(-34.4,1.16,9.5),uid:'armor'},
     {id:'wind',name:'SECOND WIND',pos:new THREE.Vector3(-35.0,1.1,16.1)},{id:'kits',name:'TRAUMA KITS',pos:new THREE.Vector3(-33.8,1.1,16.1)}); }
-// ---- Barracks: walk-in tent behind Mission Control (x 16..26, z 20..28), entrance facing the HQ (-x).
+// ---- Barracks: walk-in tent behind Mission Control (built at x 16..26, z 20..28 and moved with it), entrance facing the HQ (-x).
 // Six bunks with live name plates (one per squad slot), a roster board with everyone's health and what they do,
 // and recruitment posters along the back wall (walk up, E to recruit).
 const BAR={x0:16,x1:26,z0:20,z1:28}, BUNKS=[[18,20.75],[20.6,20.75],[23.2,20.75],[18,27.25],[20.6,27.25],[23.2,27.25]], RECRUIT_Z=[21.2,22.6,24,25.4,26.8];
 const bunkHelmets=[];
-{ const g=new THREE.Group(); scene.add(g); const B=BAR, cx=(B.x0+B.x1)/2, cz=(B.z0+B.z1)/2;
+{ const g=new THREE.Group(); scene.add(g); g.userData.move='barracks'; const B=BAR, cx=(B.x0+B.x1)/2, cz=(B.z0+B.z1)/2;
   const cv=M(0x56603f,{side:THREE.DoubleSide}), cvD=M(0x474f35,{side:THREE.DoubleSide}), dk=M(0x24272a), wood=M(0x6b5235), steel=M(0x5a6068);
   g.add(mesh(box(10,0.1,8),M(0x4a4637),cx,0.05,cz));
   g.add(mesh(box(0.12,3.2,8),cv,B.x1,1.6,cz)); g.add(mesh(box(10,3.2,0.12),cv,cx,1.6,B.z0)); g.add(mesh(box(10,3.2,0.12),cv,cx,1.6,B.z1));
@@ -1360,8 +1365,8 @@ const OBJV={}; // visuals: pumpjack beam, flare flame, panel material; site = th
   // helipad behind the mess tent, motor pool behind Mission Control
   { const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d'); x.fillStyle='#4a4a46'; x.fillRect(0,0,256,256); x.strokeStyle='#e9e4d4'; x.lineWidth=10; x.beginPath(); x.arc(128,128,108,0,7); x.stroke();
     x.fillStyle='#e9e4d4'; x.font=`900 140px ${COND}`; x.textAlign='center'; x.textBaseline='middle'; x.fillText('H',128,136);
-    const pad=new THREE.Mesh(new THREE.CircleGeometry(7,32).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({map:new THREE.CanvasTexture(c)})); pad.position.set(-42,0.06,26); pad.receiveShadow=true; g.add(pad);
-    for(let i=0;i<8;i++){ const a=i/8*6.283; g.add(mesh(new THREE.SphereGeometry(0.1,6,5),new THREE.MeshBasicMaterial({color:0x40ff70}),-42+Math.cos(a)*7.3,0.1,26+Math.sin(a)*7.3,false)); } }
+    const pad=new THREE.Mesh(new THREE.CircleGeometry(7,32).rotateX(-Math.PI/2),new THREE.MeshLambertMaterial({map:new THREE.CanvasTexture(c)})); pad.position.set(-38,0.1,27); pad.receiveShadow=true; g.add(pad);
+    for(let i=0;i<8;i++){ const a=i/8*6.283; g.add(mesh(new THREE.SphereGeometry(0.1,6,5),new THREE.MeshBasicMaterial({color:0x40ff70}),-38+Math.cos(a)*7.3,0.14,27+Math.sin(a)*7.3,false)); } }
   for(const [x,z,r] of [[38,25,0.1],[44,26,-0.15],[50,24.5,0.05]]){ const v=new THREE.Group(); v.position.set(x,0,z); v.rotation.y=r; g.add(v);
     v.add(mesh(box(2.2,1.1,4.6),M(0x5a5f44),0,1.05,0)); v.add(mesh(box(2.0,0.8,2.2),M(0x4f543b),0,1.9,-0.4)); v.add(mesh(box(1.9,0.5,0.06),M(0x2a3a44),0,1.95,0.72));
     for(const [i,j] of [[-1,-1.5],[1,-1.5],[-1,1.5],[1,1.5]]) v.add(mesh(new THREE.CylinderGeometry(0.45,0.45,0.35,10).rotateZ(Math.PI/2),M(0x1d1e20),i*1.05,0.45,j));
@@ -1395,7 +1400,7 @@ function aoStrip(x0,z0,x1,z1,w){ const L=Math.hypot(x1-x0,z1-z0), m=new THREE.Me
 const LAMP_POOL=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const x=c.getContext('2d'); const g=x.createRadialGradient(32,32,2,32,32,32);
   g.addColorStop(0,'rgba(255,200,130,0.55)'); g.addColorStop(0.5,'rgba(255,170,90,0.22)'); g.addColorStop(1,'rgba(255,150,70,0)'); x.fillStyle=g; x.fillRect(0,0,64,64); return new THREE.CanvasTexture(c); })();
 { const poleM=M(0x2a2d31), headM=new THREE.MeshBasicMaterial({color:0xffe0b0}), poolM=new THREE.MeshBasicMaterial({map:LAMP_POOL,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending,fog:false});
-  for(const [x,z] of [[-4.5,-20],[4.5,-38],[-4.5,-56],[-22,-28.4],[22,-28.4],[-34,-30.2],[34,-30.2],[-28,19],[28,19],[-14,30],[14,30]]){
+  for(const [x,z] of [[-4.5,-20],[4.5,-38],[-4.5,-56],[-22,-28.4],[22,-28.4],[-34,-30.2],[34,-30.2],[-22,24],[22,24],[-14,30],[14,30]]){
     scene.add(mesh(new THREE.CylinderGeometry(0.07,0.1,6,6),poleM,x,3,z)); scene.add(mesh(box(1.1,0.08,0.08),poleM,x+0.5,6,z));
     scene.add(mesh(box(0.42,0.12,0.26),headM,x+1,5.92,z,false)); cirC(x,z,0.12,6,L_BODY,{name:'lamp post'});
     const p=new THREE.Mesh(new THREE.PlaneGeometry(14,14).rotateX(-Math.PI/2),poolM); p.position.set(x+1,0.05,z); p.renderOrder=2; scene.add(p); } }
@@ -2645,7 +2650,7 @@ function findStation(){
   return best;
 }
 // walk-in tents (wall centre lines). A station on or inside one belongs to it; you must be inside to use it.
-const ROOMS=[{id:'hq',x0:-8,x1:8,z0:16,z1:28},{id:'mess',x0:-26,x1:-16,z0:9,z1:17},{id:'mc',x0:16,x1:26,z0:9,z1:17},{id:'barracks',x0:16,x1:26,z0:20,z1:28},...TENT_ROOMS];
+const ROOMS=[{id:'hq',x0:-8,x1:8,z0:16,z1:28},{id:'mess',x0:-66,x1:-56,z0:13,z1:21},{id:'mc',x0:56,x1:66,z0:13,z1:21},{id:'barracks',x0:56,x1:66,z0:24,z1:32},...TENT_ROOMS];
 function roomAt(x,z,pad){ pad=pad||0; for(const r of ROOMS) if(x>r.x0-pad&&x<r.x1+pad&&z>r.z0-pad&&z<r.z1+pad) return r.id; return null; }
 // metres from the player to the edge of a build's footprint
 function nearBuild(b){ const r=b.fp.r||Math.max(b.fp.hw,b.fp.hd)*0.8; return Math.max(0,Math.hypot(P.pos.x-b.x,P.pos.z-b.z)-r); }
@@ -2655,6 +2660,24 @@ const tentOpen=()=>G.creative||!G.waveActive;
 WEAPONS.forEach((w,i)=>STATIONS.push({id:'w:'+w.id,name:w.short,pos:new THREE.Vector3(25.6,RACK[i].y,RACK[i].z),wi:i}));
 UPGS.forEach((u,i)=>{ if(u.id!=='armor') STATIONS.push({id:'u:'+u.id,name:u.name.toUpperCase(),pos:new THREE.Vector3(UPX[i],1.16,9.5),uid:u.id}); }); // armor: at the Aid Station
 STATIONS.push({id:'repair',name:'HQ REPAIR',pos:new THREE.Vector3(20.9,1.16,16.5)},{id:'lever',name:'WAVE LEVER',pos:new THREE.Vector3(0,1.5,26.9)});
+// ---- FOB layout (playtest: "the other tents have a dedicated area"): two walled compounds either side of the HQ. Off Duty
+// (left): Mess Tent, the Pit, Aid Station, helipad in the yard. Command (right): Mission Control, Barracks, Personnel, motor
+// pool in the yard. Mission Control, the Mess Tent and the Barracks were built at their first spots; each moves here as a
+// whole: its group, plus colliders, stations, lights and contact shadows inside its old footprint.
+const TENT_MOVES=[{id:'mess',r:[-26,-16,9,17],dx:-40,dz:4},{id:'den',r:[-26,-16,20,28],dx:-40,dz:4},{id:'aid',r:[-40,-32,9,17],dx:-12,dz:4},
+  {id:'mc',r:[16,26,9,17],dx:40,dz:4},{id:'barracks',r:[16,26,20,28],dx:40,dz:4},{id:'office',r:[32,40,9,17],dx:12,dz:4}];
+for(const m of TENT_MOVES){ const [x0,x1,z0,z1]=m.r, inR=(x,z)=>x>x0-0.7&&x<x1+0.7&&z>z0-0.7&&z<z1+0.7;
+  for(const o of scene.children) if(!o.userData.moved&&(o.userData.move===m.id||(!o.userData.move&&o.position.lengthSq()>0&&inR(o.position.x,o.position.z)))){ o.position.x+=m.dx; o.position.z+=m.dz; o.userData.moved=true; }
+  for(const r of TENT_ROOMS) if(r.id===m.id){ r.x0+=m.dx; r.x1+=m.dx; r.z0+=m.dz; r.z1+=m.dz; }
+  for(const c of COLL) if(!c.moved&&inR(c.x,c.z)){ c.x+=m.dx; c.z+=m.dz; c.moved=true; }
+  for(const s of STATIONS) if(!s.moved&&inR(s.pos.x,s.pos.z)){ s.pos.x+=m.dx; s.pos.z+=m.dz; s.moved=true; } }
+collDirty=true;
+// compound yards: packed gravel, gate posts and a sign over each gate facing the HQ
+{ const g=new THREE.Group(); scene.add(g); const grav=M(0x5e584b), post=M(0x3a3226);
+  for(const [s,name,sub,col] of [[-1,'OFF DUTY','MESS TENT · THE PIT · AID STATION','#f3a81f'],[1,'COMMAND','MISSION CONTROL · PERSONNEL · BARRACKS','#7cc7ff']]){
+    const yard=mesh(box(39.5,0.04,22.5),grav,49*s,0.03,22.5,false); yard.receiveShadow=true; g.add(yard);
+    for(const z of [22,28]) g.add(mesh(box(0.25,3.6,0.25),post,29*s,1.8,z));
+    const sg=makeSign([{t:name,f:`72px ${STEN}`},{t:sub,f:`700 26px ${COND}`}],512,170,'#1d1a14',col,3.6,1.2); sg.position.set(29*s,3.25,25); sg.rotation.y=s<0?Math.PI/2:-Math.PI/2; g.add(sg); } }
 const $p=n=>G.creative?'FREE':'$'+fmt(n);
 function stationPrompt(s){
   const id=s.id;
@@ -3226,7 +3249,7 @@ function update(dt){
   if(G.tutorial) updateTutorial(dt);
   if(G.toast){ G.toast.life-=dt; if(G.toast.life<=0) G.toast=null; }
   G.hqAlarmT=(G.hqAlarmT||0)-dt;
-  if(!G.tut.mc&&P.pos.x>16&&P.pos.x<26&&P.pos.z>9&&P.pos.z<17) G.tut.mc=true; if(!G.tut.bar&&G.builds.some(b=>b.def.id==='barricade')) G.tut.bar=true;
+  if(!G.tut.mc&&roomAt(P.pos.x,P.pos.z)==='mc') G.tut.mc=true; if(!G.tut.bar&&G.builds.some(b=>b.def.id==='barricade')) G.tut.bar=true;
   if(G.waveActive && G.spawnQ.length){
     if(G.spawnQ[0]==='BREAK'){ // breather between groups: wait until the sky is nearly clear, then count down
       if(G.breakT==null){ if(G.enemies.filter(e=>!e.dead).length<=1){ G.breakT=WAVE.groupBreak; const nx=G.spawnQ[1]&&ETYPES[G.spawnQ[1]];
@@ -3285,7 +3308,7 @@ function ambient(dt){
     bunkHelmets.forEach((h,i)=>{ const m=G.squad[i]; h.visible=!!(m&&!m.dead&&!m.def.turret); }); // a helmet on the bunk of each soldier on duty
     const pulled=G.waveActive||G.clearT>0; lever.rotation.z+=((pulled?0.6:-0.6)-lever.rotation.z)*Math.min(1,dt*12);
     if((G.hqBoardT=(G.hqBoardT||0)-dt)<=0&&Math.hypot(P.pos.x-HQ.x,P.pos.z-HQ.z)<22){ G.hqBoardT=0.5; hqBoard.userData.redraw(); hqWaveBoard.userData.redraw(); }
-    if((G.careerT=(G.careerT||0)-dt)<=0){ G.careerT=0.5; careerTick(); const near=(x,z)=>Math.hypot(P.pos.x-x,P.pos.z-z)<16; if(near(-21,24)) potBoard.userData.redraw(); if(near(36,13)) recordBoard.userData.redraw(); } // ranks, medals; the pot and the service record boards // the HQ status board, while you're near it
+    if((G.careerT=(G.careerT||0)-dt)<=0){ G.careerT=0.5; careerTick(); const near=(x,z)=>Math.hypot(P.pos.x-x,P.pos.z-z)<16; if(near(-61,28)) potBoard.userData.redraw(); if(near(48,17)) recordBoard.userData.redraw(); } // ranks, medals; the pot and the service record boards // the HQ status board, while you're near it
     leverLamp.material.color.setHex(pulled?0xff3020:(Math.sin(ambT*5)>0?0x40ff70:0x0d3a18));
     G.mcT=(G.mcT||0)-dt; if(G.mcT<=0){ G.mcT=0.5; refreshMC(); }
   }
@@ -3505,15 +3528,14 @@ function drawHUD(){
     txt(`${tg.carpet?'CARPET BOMBING':tg.emp?'EMP · TURRETS GO DARK':tg.cruise?'CRUISE MISSILE':'BOMBS'} ${left.toFixed(1)}s`,s.x,s.y,left<2?16:14,left<2&&Math.sin(G.time*20)>0?'#fff':'#ff5a3c','center',800); }
   for(const p of G.popups){ const s=toScreen(p.p); if(!s.ok) continue; hx.globalAlpha=clamp(p.life/p.max*2,0,1); txt(p.text,s.x,s.y-30-(p.max-p.life)*30,16,p.col,'center',800); } hx.globalAlpha=1;
   // mess tent marker, station labels and the interact prompt
-  if(G.intermission||G.creative){ const d=Math.round(Math.hypot(P.pos.x-16,P.pos.z-24)), inB=P.pos.x>16&&P.pos.x<26&&P.pos.z>20&&P.pos.z<28, p=toScreen(tv.set(16,5,24));
-    if(!inB&&d>7&&p.ok){ txt('▼ BARRACKS',p.x,p.y-8,14,'#6fd39a','center',800); txt(d+'M · SQUAD',p.x,p.y+8,12,'#e9e4d4','center'); } }
-  if(G.intermission||G.creative) for(const [name,x,col] of [['MISSION CONTROL',16,'#7cc7ff'],['MESS TENT',-16,'#f3a81f']]){
-    const inside=Math.abs(P.pos.x-(x>0?21:-21))<5.2&&P.pos.z>9&&P.pos.z<17; if(inside) continue;
-    const d=Math.round(Math.hypot(P.pos.x-x,P.pos.z-13)); if(d<=7) continue; const p=toScreen(tv.set(x,5,13));
-    if(p.ok){ txt('▼ '+name,p.x,p.y-8,14,col,'center',800); txt(d+'M'+(x>0?' · ARMORY':''),p.x,p.y+8,12,'#e9e4d4','center'); } }
-  if(G.intermission&&!G.creative&&roomAt(P.pos.x,P.pos.z)!=='hq'){ const col='#ff5a3c', d=Math.round(Math.hypot(P.pos.x-8.5,P.pos.z-19)), p=toScreen(tv.set(8.3,4.4,19)); // the way in to the wave lever
+  // between waves: one marker per compound, at its gate facing the HQ (each tent inside has its own sign)
+  if(G.intermission||G.creative) for(const [name,sub,x,col] of [['COMMAND','ARMORY · PERSONNEL · SQUAD',29,'#7cc7ff'],['OFF DUTY','MESS · THE PIT · AID',-29,'#f3a81f']]){
+    if(Math.sign(P.pos.x)===Math.sign(x)&&Math.abs(P.pos.x)>Math.abs(x)) continue; // already in that compound
+    const d=Math.round(Math.hypot(P.pos.x-x,P.pos.z-25)); if(d<=5) continue; const p=toScreen(tv.set(x,4.5,25));
+    if(p.ok){ txt('▼ '+name,p.x,p.y-8,14,col,'center',800); txt(d+'M · '+sub,p.x,p.y+8,12,'#e9e4d4','center'); } }
+  if(G.intermission&&!G.creative&&roomAt(P.pos.x,P.pos.z)!=='hq'){ const col='#ff5a3c', d=Math.round(Math.hypot(P.pos.x,P.pos.z-15)), p=toScreen(tv.set(0,4.6,15.5)); // the way in to the wave lever: the open front
     if(p.ok){ if(d>4){ txt('▼ HQ',p.x,p.y-8,14,col,'center',800); txt(d+'M · WAVE LEVER',p.x,p.y+8,12,'#e9e4d4','center'); } }
-    else { tv.set(8.3,3,19).applyMatrix4(cam.matrixWorldInverse); const a=Math.atan2(-tv.y,tv.x), ex=VW/2+Math.cos(a)*VW*0.42, ey=VH/2+Math.sin(a)*VH*0.4; // off screen: an arrow at the edge
+    else { tv.set(0,3,16).applyMatrix4(cam.matrixWorldInverse); const a=Math.atan2(-tv.y,tv.x), ex=VW/2+Math.cos(a)*VW*0.42, ey=VH/2+Math.sin(a)*VH*0.4; // off screen: an arrow at the edge
       hx.save(); hx.translate(ex,ey); hx.rotate(a); hx.fillStyle=col; hx.beginPath(); hx.moveTo(14,0); hx.lineTo(-6,-9); hx.lineTo(-6,9); hx.fill(); hx.restore(); txt('HQ · WAVE LEVER',ex,ey+24,12,col,'center',800); } }
   if(!P.dead) for(const s of STATIONS){ const d=s.pos.distanceTo(eye()); if(d>9) continue; const p=toScreen(tv.copy(s.pos).add(tv2.set(0,0.45,0))); if(!p.ok) continue;
     hx.globalAlpha=clamp((9-d)/3,0,1)*(P.station===s?1:0.7); txt(s.name,p.x,p.y,12,P.station===s?'#f3a81f':'#e9e4d4','center',800); hx.globalAlpha=1; }
@@ -3622,8 +3644,8 @@ function drawHUD(){
     const sw=(G.time*1.6)%6.283; hx.fillStyle='rgba(111,211,154,0.12)'; hx.beginPath(); hx.moveTo(rx,ry); hx.arc(rx,ry,rad,sw-0.5,sw); hx.fill();
     const fovA=cam.fov*Math.PI/360*cam.aspect; hx.strokeStyle='rgba(255,255,255,0.25)'; hx.beginPath(); hx.moveTo(rx+Math.sin(-fovA)*rad,ry-Math.cos(fovA)*rad); hx.lineTo(rx,ry); hx.lineTo(rx+Math.sin(fovA)*rad,ry-Math.cos(fovA)*rad); hx.stroke();
     { const [u,v]=radarXY(HQ.x,HQ.z,range,rad); hx.fillStyle='#f3a81f'; hx.fillRect(rx+u-4,ry+v-4,8,8); }
-    { const [u,v]=radarXY(21,13,range,rad); hx.strokeStyle='#7cc7ff'; hx.lineWidth=1.5; hx.strokeRect(rx+u-3.5,ry+v-3.5,7,7); }
-    { const [u,v]=radarXY(-21,13,range,rad); hx.strokeStyle='#d8b26a'; hx.lineWidth=1.5; hx.strokeRect(rx+u-3.5,ry+v-3.5,7,7); }
+    { const [u,v]=radarXY(61,17,range,rad); hx.strokeStyle='#7cc7ff'; hx.lineWidth=1.5; hx.strokeRect(rx+u-3.5,ry+v-3.5,7,7); }
+    { const [u,v]=radarXY(-61,17,range,rad); hx.strokeStyle='#d8b26a'; hx.lineWidth=1.5; hx.strokeRect(rx+u-3.5,ry+v-3.5,7,7); }
     for(const s of G.squad){ const [u,v]=radarXY(s.x,s.z,range,rad); hx.fillStyle='#6fd39a'; hx.fillRect(rx+u-2,ry+v-2,4,4); }
     for(const id in G.obj){ const D=OBJ_DEF[id], o=G.obj[id]; if(!o.built) continue; const [u,v]=radarXY(D.x,D.z,range,rad); hx.strokeStyle=o.dead?'#ff5a3c':D.col; hx.lineWidth=1.5; hx.beginPath(); hx.moveTo(rx+u,ry+v-4); hx.lineTo(rx+u+4,ry+v); hx.lineTo(rx+u,ry+v+4); hx.lineTo(rx+u-4,ry+v); hx.closePath(); hx.stroke(); }
     for(const tg of G.tele||[]){ const [u,v]=radarXY(tg.x,tg.z,range,rad); hx.strokeStyle=Math.sin(G.time*12)>0?'#ff3a2a':'#ffb020'; hx.lineWidth=2; hx.beginPath(); hx.moveTo(rx+u-4,ry+v-4); hx.lineTo(rx+u+4,ry+v+4); hx.moveTo(rx+u+4,ry+v-4); hx.lineTo(rx+u-4,ry+v+4); hx.stroke(); }
@@ -3732,7 +3754,8 @@ const potLoss=b=>{ if(!G.creative) G.pot=(G.pot||POT_START)+Math.round(b*POT_CUT
 // High-low: you see a card (A=1 .. K=13) and call whether the next one is higher or lower. A tie returns the bet. Each call pays
 // by its odds with an 8% house edge, so no card is a sure thing.
 const HL_EDGE=0.92, CARD=k=>['A','2','3','4','5','6','7','8','9','10','J','Q','K'][k-1];
-function hlPay(k,up){ const pw=(up?13-k:k-1)/13; return pw>0?(HL_EDGE-1/13)/pw:0; }
+// a call with better than 80% odds would pay back less than the bet, so the dealer won't take it (NEW CARD redeals for free)
+function hlPay(k,up){ const pw=(up?13-k:k-1)/13; return pw>0&&pw<=0.8?(HL_EDGE-1/13)/pw:0; }
 function playHighLow(up){ if(!canBet()) return; const k=G.hl||(G.hl=1+(Math.random()*13|0)), m=hlPay(k,up); if(m<=0) return;
   const bet=betAmt(); G.cash-=bet; const n=1+(Math.random()*13|0); G.hlPrev=k; G.hl=n;
   if(n===k){ G.cash+=bet; G.gmsg={t:`${CARD(k)} then ${CARD(n)} · a tie, bet returned`,c:'push'}; sfx('buy'); }
@@ -3813,7 +3836,8 @@ function renderMess(){
   h+=`<div class="col game"><h4>High-Low</h4><div class="dice ${G.spun==='hl'?'spin':''}"><div>${G.hlPrev?`Last<br><span class="die sarge">${CARD(G.hlPrev)}</span>`:''}</div><div>Showing<br><span class="die">${CARD(k)}</span></div></div>
     <button class="btn sm" data-act="hl" data-id="up" ${ok&&up>0?'':'disabled'}>HIGHER · pays ×${up>0?up.toFixed(2):'—'}</button>
     <button class="btn sm" data-act="hl" data-id="down" ${ok&&dn>0?'':'disabled'} style="margin-top:6px">LOWER · pays ×${dn>0?dn.toFixed(2):'—'}</button>
-    <div class="paytable">Call the next card for $${bt}. Aces low. A tie returns your bet. The longer the odds, the bigger the pay.</div></div></div>`;
+    <button class="btn alt sm" data-act="hl" data-id="new" style="margin-top:6px">NEW CARD</button>
+    <div class="paytable">Call the next card for $${bt}. Aces low. A tie returns your bet. The longer the odds, the bigger the pay; sure things are off the table.</div></div></div>`;
   h+=cr?`<div class="shop-foot"><p>Back to the range when you are done.</p><button class="btn" data-act="deploy">BACK TO THE RANGE</button></div>`
        :`<div class="shop-foot"><p>The Sarge always wants a rematch. Wave ${G.wave+1} starts when you pull the lever in the HQ.</p><div class="head-r"><button class="btn alt sm" data-act="buildmode">BUILD (F)</button><button class="btn" data-act="close">BACK TO THE FOB</button></div></div>`;
   G.spun=null;
@@ -3924,7 +3948,7 @@ $('shop').addEventListener('click',e=>{
   else if(a==='bet'){ G.bet=id==='all'?'all':+id; }
   else if(a==='slots'){ playSlots(); }
   else if(a==='dice'){ playDice(); }
-  else if(a==='hl'){ playHighLow(id==='up'); }
+  else if(a==='hl'){ if(id==='new'){ G.hl=1+(Math.random()*13|0); G.hlPrev=0; G.spun='hl'; } else playHighLow(id==='up'); }
   else if(a==='perk'){ takePerk(id); }
   else if(a==='spawn'){ const n=+b.dataset.n, el=b.dataset.elite; let made=0; for(let i=0;i<n&&G.enemies.length<(id==='swarm'?60:30);i++){spawnEnemy(id,null,el?{elite:pick(Object.keys(ELITE_TRAITS))}:null);made++;} if(made) sfx('buy'); else sfx('hit'); }
   else if(a==='lvl'){ G.cwave=clamp((G.cwave||G.wave)+(+id),1,40); if(!G.waveActive) G.wave=G.cwave; }
@@ -4023,7 +4047,7 @@ const TUT_STEPS=[
   {t:'Press 3 for the Stinger. Hold the crosshair on the jet until it says LOCKED, then fire.',start:()=>{ P.ws.stinger.owned=true; tutJet(); },done:()=>tutAlive()===0},
   {t:'Bomb run! The red ellipse on the ground is where the bombs land. Get clear of it.',start:()=>tutBomber(),done:()=>G.tr.bombsDone},
   {t:'Press F, choose the HESCO Barricade (1) and click to place it. Aim at its top to stack another. Press F again when done.',done:()=>G.builds.some(b=>b.def.id==='barricade')&&!G.build.on},
-  {t:'Walk into Mission Control (blue marker). Weapons hang on the back wall, upgrades sit on the terminals.',done:()=>P.pos.x>16&&P.pos.x<26&&P.pos.z>9&&P.pos.z<17},
+  {t:'Walk into Mission Control, in the Command compound (blue marker). Weapons hang on the back wall, upgrades sit on the terminals.',done:()=>roomAt(P.pos.x,P.pos.z)==='mc'},
   {t:'Look at the lever and press E to start wave 1. Good luck.',done:()=>false},
 ];
 function startTutorial(){
